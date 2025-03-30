@@ -10,6 +10,9 @@ public:
     virtual std::string toString() const = 0;
 };
 
+// Type alias for compatibility with code generator
+using AST = ASTNode;
+
 // Program is the root node of the AST
 class Program : public ASTNode {
 public:
@@ -32,6 +35,9 @@ class Statement : public ASTNode {
 public:
     virtual ~Statement() = default;
 };
+
+// Type alias for compatibility with code generator
+using StatementAST = Statement;
 
 // Literal represents constant values
 class Literal : public Expression {

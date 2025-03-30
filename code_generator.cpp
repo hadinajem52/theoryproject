@@ -3,18 +3,24 @@
 #include <fstream>
 
 void CodeGenerator::generate(const AST* ast, const std::string& outputFile) {
+    if (!ast) {
+        throw std::runtime_error("Cannot generate code from null AST");
+    }
+    
     std::ofstream outFile(outputFile);
     
     if (!outFile.is_open()) {
         throw std::runtime_error("Failed to open output file: " + outputFile);
     }
     
-    if (!ast) {
-        throw std::runtime_error("Cannot generate code from null AST");
+    try {
+        // Continue with code generation
+        // ...existing code...
+    } catch (const std::exception& e) {
+        throw std::runtime_error(std::string("Code generation error: ") + e.what());
+    } catch (...) {
+        throw std::runtime_error("Unknown error occurred during code generation");
     }
-    
-    // Continue with code generation
-    // ...existing code...
 }
 
 void CodeGenerator::generateStatement(const StatementAST* ast) {
@@ -22,5 +28,10 @@ void CodeGenerator::generateStatement(const StatementAST* ast) {
         throw std::runtime_error("Cannot generate code from null StatementAST");
     }
     
-    // ...existing code...
+    try {
+        // Generate statement code
+        // ...existing code...
+    } catch (const std::exception& e) {
+        throw std::runtime_error(std::string("Statement generation error: ") + e.what());
+    }
 }

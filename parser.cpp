@@ -3,43 +3,47 @@
 #include <sstream>
 
 Parser::Parser(const std::vector<Token>& tokens)
-    : tokens(tokens), current(0), currentState({State::PROGRAM, "PROGRAM"}) {
+    : tokens(tokens), current(0), currentState({PROGRAM, "PROGRAM"}), 
+      hasError(false), errorMessage("") {
     initAutomaton();
 }
 
 void Parser::initAutomaton() {
     // Define states
     states = {
-        {State::PROGRAM, "PROGRAM"},
-        {State::STATEMENT, "STATEMENT"},
-        {State::EXPRESSION, "EXPRESSION"},
-        {State::FUNCTION_DECLARATION, "FUNCTION_DECLARATION"},
-        {State::CLASS_DECLARATION, "CLASS_DECLARATION"},
-        {State::IF_STATEMENT, "IF_STATEMENT"},
-        {State::WHILE_STATEMENT, "WHILE_STATEMENT"},
-        {State::FOR_STATEMENT, "FOR_STATEMENT"},
-        {State::IMPORT_STATEMENT, "IMPORT_STATEMENT"},
-        {State::ASSIGNMENT, "ASSIGNMENT"},
-        {State::CALL_EXPRESSION, "CALL_EXPRESSION"},
-        {State::ERROR, "ERROR"}
+        {PROGRAM, "PROGRAM"},
+        {STATEMENT, "STATEMENT"},
+        {EXPRESSION, "EXPRESSION"},
+        {FUNCTION_DECLARATION, "FUNCTION_DECLARATION"},
+        {CLASS_DECLARATION, "CLASS_DECLARATION"},
+        {IF_STATEMENT, "IF_STATEMENT"},
+        {WHILE_STATEMENT, "WHILE_STATEMENT"},
+        {FOR_STATEMENT, "FOR_STATEMENT"},
+        {IMPORT_STATEMENT, "IMPORT_STATEMENT"},
+        {ASSIGNMENT, "ASSIGNMENT"},
+        {CALL_EXPRESSION, "CALL_EXPRESSION"},
+        {ERROR, "ERROR"}
     };
     
     // Define transitions (simplified for visualization)
     transitions = {
-        {{State::PROGRAM, "PROGRAM"}, {State::STATEMENT, "STATEMENT"}, "statement"},
-        {{State::STATEMENT, "STATEMENT"}, {State::EXPRESSION, "EXPRESSION"}, "expression"},
-        {{State::STATEMENT, "STATEMENT"}, {State::FUNCTION_DECLARATION, "FUNCTION_DECLARATION"}, "def keyword"},
-        {{State::STATEMENT, "STATEMENT"}, {State::CLASS_DECLARATION, "CLASS_DECLARATION"}, "class keyword"},
-        {{State::STATEMENT, "STATEMENT"}, {State::IF_STATEMENT, "IF_STATEMENT"}, "if keyword"},
-        {{State::STATEMENT, "STATEMENT"}, {State::WHILE_STATEMENT, "WHILE_STATEMENT"}, "while keyword"},
-        {{State::STATEMENT, "STATEMENT"}, {State::FOR_STATEMENT, "FOR_STATEMENT"}, "for keyword"},
-        {{State::STATEMENT, "STATEMENT"}, {State::IMPORT_STATEMENT, "IMPORT_STATEMENT"}, "import/from keyword"},
-        {{State::EXPRESSION, "EXPRESSION"}, {State::ASSIGNMENT, "ASSIGNMENT"}, "= operator"},
-        {{State::EXPRESSION, "EXPRESSION"}, {State::CALL_EXPRESSION, "CALL_EXPRESSION"}, "( after identifier"}
+        {{PROGRAM, "PROGRAM"}, {STATEMENT, "STATEMENT"}, "statement"},
+        {{STATEMENT, "STATEMENT"}, {EXPRESSION, "EXPRESSION"}, "expression"},
+        {{STATEMENT, "STATEMENT"}, {FUNCTION_DECLARATION, "FUNCTION_DECLARATION"}, "def keyword"},
+        {{STATEMENT, "STATEMENT"}, {CLASS_DECLARATION, "CLASS_DECLARATION"}, "class keyword"},
+        {{STATEMENT, "STATEMENT"}, {IF_STATEMENT, "IF_STATEMENT"}, "if keyword"},
+        {{STATEMENT, "STATEMENT"}, {WHILE_STATEMENT, "WHILE_STATEMENT"}, "while keyword"},
+        {{STATEMENT, "STATEMENT"}, {FOR_STATEMENT, "FOR_STATEMENT"}, "for keyword"},
+        {{STATEMENT, "STATEMENT"}, {IMPORT_STATEMENT, "IMPORT_STATEMENT"}, "import/from keyword"},
+        {{EXPRESSION, "EXPRESSION"}, {ASSIGNMENT, "ASSIGNMENT"}, "= operator"},
+        {{EXPRESSION, "EXPRESSION"}, {CALL_EXPRESSION, "CALL_EXPRESSION"}, "( after identifier"}
     };
 }
 
 std::unique_ptr<ASTNode> Parser::parse() {
+    hasError = false;
+    errorMessage = "";
+    
     try {
         auto program = parseProgram();
         
@@ -52,7 +56,10 @@ std::unique_ptr<ASTNode> Parser::parse() {
         
         return program;
     } catch (const ParseError& error) {
-        std::cerr << "Parse error: " << error.what() << std::endl;
+        hasError = true;
+        errorMessage = error.what();
+        
+        std::cerr << "Parse error: " << errorMessage << std::endl;
         
         // Print context information - show a few tokens before and after the error
         size_t errorPos = current < tokens.size() ? current : tokens.size() - 1;
@@ -65,7 +72,7 @@ std::unique_ptr<ASTNode> Parser::parse() {
                       << tokens[i].toString() << std::endl;
         }
         
-        currentState = {State::ERROR, "ERROR"};
+        currentState = {ERROR, "ERROR"};
         return nullptr;
     }
 }
@@ -81,7 +88,7 @@ std::unique_ptr<Program> Parser::parseProgram() {
 }
 
 std::unique_ptr<Statement> Parser::parseStatement() {
-    currentState = {State::STATEMENT, "STATEMENT"};
+    currentState = {STATEMENT, "STATEMENT"};
     
     if (match(Token::KEYWORD_DEF)) {
         return parseFunctionDeclaration();
@@ -119,7 +126,7 @@ std::unique_ptr<Statement> Parser::parseStatement() {
 }
 
 std::unique_ptr<FunctionDeclaration> Parser::parseFunctionDeclaration() {
-    currentState = {State::FUNCTION_DECLARATION, "FUNCTION_DECLARATION"};
+    currentState = {FUNCTION_DECLARATION, "FUNCTION_DECLARATION"};
     
     // Function name
     Token name = consume(Token::IDENTIFIER, "Expected function name");
@@ -158,7 +165,7 @@ std::vector<FunctionDeclaration::Parameter> Parser::parseFunctionParameters() {
 }
 
 std::unique_ptr<ClassDeclaration> Parser::parseClassDeclaration() {
-    currentState = {State::CLASS_DECLARATION, "CLASS_DECLARATION"};
+    currentState = {CLASS_DECLARATION, "CLASS_DECLARATION"};
     
     // Class name
     Token name = consume(Token::IDENTIFIER, "Expected class name");
@@ -184,7 +191,7 @@ std::unique_ptr<ClassDeclaration> Parser::parseClassDeclaration() {
 }
 
 std::unique_ptr<ImportStatement> Parser::parseImportStatement() {
-    currentState = {State::IMPORT_STATEMENT, "IMPORT_STATEMENT"};
+    currentState = {IMPORT_STATEMENT, "IMPORT_STATEMENT"};
     
     ImportStatement::ImportType type;
     std::string module;
@@ -232,7 +239,7 @@ std::unique_ptr<ImportStatement> Parser::parseImportStatement() {
 }
 
 std::unique_ptr<Statement> Parser::parseIfStatement() {
-    currentState = {State::IF_STATEMENT, "IF_STATEMENT"};
+    currentState = {IF_STATEMENT, "IF_STATEMENT"};
     
     // If condition
     auto condition = parseExpression();
@@ -265,7 +272,7 @@ std::unique_ptr<Statement> Parser::parseIfStatement() {
 }
 
 std::unique_ptr<Statement> Parser::parseWhileStatement() {
-    currentState = {State::WHILE_STATEMENT, "WHILE_STATEMENT"};
+    currentState = {WHILE_STATEMENT, "WHILE_STATEMENT"};
     
     // While condition
     auto condition = parseExpression();
@@ -277,7 +284,7 @@ std::unique_ptr<Statement> Parser::parseWhileStatement() {
 }
 
 std::unique_ptr<Statement> Parser::parseForStatement() {
-    currentState = {State::FOR_STATEMENT, "FOR_STATEMENT"};
+    currentState = {FOR_STATEMENT, "FOR_STATEMENT"};
     
     // For loop variable
     auto variable = parseExpression();
@@ -334,17 +341,26 @@ std::unique_ptr<Statement> Parser::parseExpressionStatement() {
     if (match(Token::OP_ASSIGN)) {
         auto target = std::move(expr);
         auto value = parseExpression();
-        consume(Token::NEWLINE, "Expected newline after assignment");
+        
+        // Check for EOF or consume newline
+        if (!check(Token::END_OF_FILE)) {
+            consume(Token::NEWLINE, "Expected newline after assignment");
+        }
+        
         return std::make_unique<AssignmentStatement>(std::move(target), std::move(value));
     }
     
     // Regular expression statement
-    consume(Token::NEWLINE, "Expected newline after expression");
+    // Check for EOF or consume newline
+    if (!check(Token::END_OF_FILE)) {
+        consume(Token::NEWLINE, "Expected newline after expression");
+    }
+    
     return std::make_unique<ExpressionStatement>(std::move(expr));
 }
 
 std::unique_ptr<Expression> Parser::parseExpression() {
-    currentState = {State::EXPRESSION, "EXPRESSION"};
+    currentState = {EXPRESSION, "EXPRESSION"};
     return parseLogicalOr();
 }
 
@@ -496,7 +512,7 @@ std::unique_ptr<Expression> Parser::parseCall() {
     // Function call
     while (true) {
         if (match(Token::SEP_LPAREN)) {
-            currentState = {State::CALL_EXPRESSION, "CALL_EXPRESSION"};
+            currentState = {CALL_EXPRESSION, "CALL_EXPRESSION"};
             
             // Parse arguments
             std::vector<std::unique_ptr<Expression>> arguments;
@@ -715,4 +731,12 @@ std::vector<Parser::Transition> Parser::getTransitions() const {
 
 Parser::State Parser::getCurrentState() const {
     return currentState;
+}
+
+bool Parser::hasParseError() const {
+    return hasError;
+}
+
+std::string Parser::getErrorMessage() const {
+    return errorMessage;
 }

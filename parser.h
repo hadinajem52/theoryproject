@@ -6,25 +6,24 @@
 #include "token.h"
 #include "ast.h"
 #include "ast_extended.h"
-#include <stdexcept>  // Ensure this is here and not commented out
+#include <stdexcept>
 
 class Parser {
 public:
-    Parser(const std::vector<Token>& tokens);
+    // State enum definition
+    enum StateType {
+        PROGRAM, STATEMENT, EXPRESSION, FUNCTION_DECLARATION,
+        CLASS_DECLARATION, IF_STATEMENT, WHILE_STATEMENT, FOR_STATEMENT,
+        IMPORT_STATEMENT, ASSIGNMENT, CALL_EXPRESSION, ERROR
+    };
     
-    // Main parsing method
-    std::unique_ptr<ASTNode> parse();
-    
-    // Visualization support
     struct State {
-        enum StateType {
-            PROGRAM, STATEMENT, EXPRESSION, FUNCTION_DECLARATION,
-            CLASS_DECLARATION, IF_STATEMENT, WHILE_STATEMENT, FOR_STATEMENT,
-            IMPORT_STATEMENT, ASSIGNMENT, CALL_EXPRESSION, ERROR
-        };
-        
         StateType type;
         std::string name;
+        
+        bool operator==(const State& other) const {
+            return type == other.type && name == other.name;
+        }
     };
     
     struct Transition {
@@ -33,15 +32,35 @@ public:
         std::string condition;
     };
     
+    Parser(const std::vector<Token>& tokens);
+    
+    // Main parsing method
+    std::unique_ptr<ASTNode> parse();
+    
     // Get parsing states and transitions for visualization
     std::vector<State> getStates() const;
     std::vector<Transition> getTransitions() const;
     State getCurrentState() const;
     
+    // Error checking methods
+    bool hasParseError() const;
+    std::string getErrorMessage() const;
+    
 private:
     const std::vector<Token>& tokens;
     size_t current;
     State currentState;
+    
+    // Error tracking
+    bool hasError;
+    std::string errorMessage;
+    
+    // Automaton states and transitions for visualization
+    std::vector<State> states;
+    std::vector<Transition> transitions;
+    
+    // Initialize the automaton states and transitions
+    void initAutomaton();
     
     // Helper methods
     Token peek() const;
@@ -88,11 +107,14 @@ private:
     };
     
     ParseError error(const Token& token, const std::string& message);
-    
-    // Automaton states and transitions for visualization
-    std::vector<State> states;
-    std::vector<Transition> transitions;
-    
-    // Initialize the automaton states and transitions
-    void initAutomaton();
 };
+
+// Define a hash function for the State struct if needed for unordered_map
+namespace std {
+    template<>
+    struct hash<Parser::State> {
+        size_t operator()(const Parser::State& state) const {
+            return hash<int>()(static_cast<int>(state.type)) ^ hash<string>()(state.name);
+        }
+    };
+}

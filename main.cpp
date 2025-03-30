@@ -28,6 +28,7 @@ public:
         // Read Python code from file
         std::string pythonCode = readFile(inputFile);
         if (pythonCode.empty()) {
+            std::cerr << "Error: Input file is empty or could not be read" << std::endl;
             return false;
         }
 
@@ -39,16 +40,39 @@ public:
         Parser parser(tokens);
         std::unique_ptr<ASTNode> ast = parser.parse();
         
+        // Check if parsing was successful
+        if (!ast) {
+            std::cerr << "Error: Parsing failed - could not generate AST" << std::endl;
+            if (parser.hasParseError()) {
+                std::cerr << "Parse error details: " << parser.getErrorMessage() << std::endl;
+            }
+            return false;
+        }
+        
         // Phase 3: Semantic Analysis
-        SemanticAnalyzer analyzer;
-        analyzer.analyze(ast.get());
+        try {
+            SemanticAnalyzer analyzer;
+            analyzer.analyze(ast.get());
+        } catch (const std::exception& e) {
+            std::cerr << "Error during semantic analysis: " << e.what() << std::endl;
+            return false;
+        }
         
         // Phase 4: Code Generation
-        JSCodeGenerator codeGen;
-        std::string jsCode = codeGen.generate(ast.get());
-        
-        // Write the JavaScript code to output file
-        if (!writeFile(outputFile, jsCode)) {
+        try {
+            if (!ast) {
+                throw std::runtime_error("AST is null after semantic analysis");
+            }
+            
+            JSCodeGenerator codeGen;
+            std::string jsCode = codeGen.generate(ast.get());
+            
+            // Write the JavaScript code to output file
+            if (!writeFile(outputFile, jsCode)) {
+                return false;
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Error during code generation: " << e.what() << std::endl;
             return false;
         }
         
