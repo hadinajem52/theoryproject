@@ -43,17 +43,13 @@ public:
         // Check if parsing was successful
         if (!ast) {
             std::cerr << "Error: Parsing failed - could not generate AST" << std::endl;
-<<<<<<< HEAD
             if (parser.hasParseError()) {
                 std::cerr << "Parse error details: " << parser.getErrorMessage() << std::endl;
             }
-=======
->>>>>>> e6b947508adc9caf112ff5e077ff371472f5b8e1
             return false;
         }
         
         // Phase 3: Semantic Analysis
-<<<<<<< HEAD
         try {
             SemanticAnalyzer analyzer;
             analyzer.analyze(ast.get());
@@ -68,13 +64,6 @@ public:
                 throw std::runtime_error("AST is null after semantic analysis");
             }
             
-=======
-        SemanticAnalyzer analyzer;
-        analyzer.analyze(ast.get()); // Remove the if check here since analyze() may not return bool
-        
-        // Phase 4: Code Generation
-        try {
->>>>>>> e6b947508adc9caf112ff5e077ff371472f5b8e1
             JSCodeGenerator codeGen;
             std::string jsCode = codeGen.generate(ast.get());
             

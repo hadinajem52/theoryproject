@@ -2,10 +2,8 @@
 #include <string>
 #include "lexer.h"
 #include "parser.h"
-#include "code_generator.h"
-
-// Forward declarations if needed
-class SemanticAnalyzer;
+#include "semantic_analyzer.h"
+#include "js_code_generator.h"  // Added this include
 
 class PythonToJSTranslator {
 public:

@@ -41,9 +41,19 @@ bool PythonToJSTranslator::run(const std::string& inputFile, const std::string& 
     }
 
     // Code generation
-    CodeGenerator generator;
+    JSCodeGenerator generator;
     try {
-        generator.generate(ast.get(), outputFile);
+        std::string jsCode = generator.generate(ast.get());
+        
+        // Write the generated code to output file
+        std::ofstream outFile(outputFile);
+        if (!outFile.is_open()) {
+            std::cerr << "Error: Failed to open output file: " << outputFile << std::endl;
+            return false;
+        }
+        outFile << jsCode;
+        outFile.close();
+        
         std::cout << "Successfully translated " << inputFile << " to " << outputFile << std::endl;
         return true;
     } catch (const std::exception& e) {
