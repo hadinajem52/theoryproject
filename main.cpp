@@ -39,16 +39,27 @@ public:
         Parser parser(tokens);
         std::unique_ptr<ASTNode> ast = parser.parse();
         
+        // Check if parsing was successful
+        if (!ast) {
+            std::cerr << "Error: Parsing failed - could not generate AST" << std::endl;
+            return false;
+        }
+        
         // Phase 3: Semantic Analysis
         SemanticAnalyzer analyzer;
-        analyzer.analyze(ast.get());
+        analyzer.analyze(ast.get()); // Remove the if check here since analyze() may not return bool
         
         // Phase 4: Code Generation
-        JSCodeGenerator codeGen;
-        std::string jsCode = codeGen.generate(ast.get());
-        
-        // Write the JavaScript code to output file
-        if (!writeFile(outputFile, jsCode)) {
+        try {
+            JSCodeGenerator codeGen;
+            std::string jsCode = codeGen.generate(ast.get());
+            
+            // Write the JavaScript code to output file
+            if (!writeFile(outputFile, jsCode)) {
+                return false;
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Error during code generation: " << e.what() << std::endl;
             return false;
         }
         

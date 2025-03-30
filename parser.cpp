@@ -334,12 +334,21 @@ std::unique_ptr<Statement> Parser::parseExpressionStatement() {
     if (match(Token::OP_ASSIGN)) {
         auto target = std::move(expr);
         auto value = parseExpression();
-        consume(Token::NEWLINE, "Expected newline after assignment");
+        
+        // Check for EOF or consume newline
+        if (!check(Token::END_OF_FILE)) {
+            consume(Token::NEWLINE, "Expected newline after assignment");
+        }
+        
         return std::make_unique<AssignmentStatement>(std::move(target), std::move(value));
     }
     
     // Regular expression statement
-    consume(Token::NEWLINE, "Expected newline after expression");
+    // Check for EOF or consume newline
+    if (!check(Token::END_OF_FILE)) {
+        consume(Token::NEWLINE, "Expected newline after expression");
+    }
+    
     return std::make_unique<ExpressionStatement>(std::move(expr));
 }
 
