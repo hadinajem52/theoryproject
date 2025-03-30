@@ -1,0 +1,8 @@
+C:/Users/user/theoryproject/build/CMakeFiles/TheoryProject.dir
+C:/Users/user/theoryproject/build/CMakeFiles/run_visualize.dir
+C:/Users/user/theoryproject/build/CMakeFiles/edit_cache.dir
+C:/Users/user/theoryproject/build/CMakeFiles/rebuild_cache.dir
+C:/Users/user/theoryproject/build/CMakeFiles/list_install_components.dir
+C:/Users/user/theoryproject/build/CMakeFiles/install.dir
+C:/Users/user/theoryproject/build/CMakeFiles/install/local.dir
+C:/Users/user/theoryproject/build/CMakeFiles/install/strip.dir

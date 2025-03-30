@@ -1,0 +1,3 @@
+C:\msys64\ucrt64\bin\cmake.exe -E rm -f CMakeFiles\TheoryProject.dir/objects.a
+C:\msys64\ucrt64\bin\ar.exe qc CMakeFiles\TheoryProject.dir/objects.a @CMakeFiles\TheoryProject.dir\objects1.rsp
+C:\msys64\ucrt64\bin\g++.exe -g -g -Wl,--whole-archive CMakeFiles\TheoryProject.dir/objects.a -Wl,--no-whole-archive -o TheoryProject.exe -Wl,--out-implib,libTheoryProject.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\TheoryProject.dir\linkLibs.rsp

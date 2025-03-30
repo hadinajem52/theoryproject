@@ -1,0 +1,56 @@
+[
+{
+  "directory": "C:/Users/user/theoryproject/build",
+  "command": "C:\\msys64\\ucrt64\\bin\\g++.exe  @CMakeFiles/TheoryProject.dir/includes_CXX.rsp -g -g -std=gnu++17 -Wall -Wextra -pedantic -o CMakeFiles\\TheoryProject.dir\\main.cpp.obj -c C:\\Users\\user\\theoryproject\\main.cpp",
+  "file": "C:/Users/user/theoryproject/main.cpp",
+  "output": "CMakeFiles/TheoryProject.dir/main.cpp.obj"
+},
+{
+  "directory": "C:/Users/user/theoryproject/build",
+  "command": "C:\\msys64\\ucrt64\\bin\\g++.exe  @CMakeFiles/TheoryProject.dir/includes_CXX.rsp -g -g -std=gnu++17 -Wall -Wextra -pedantic -o CMakeFiles\\TheoryProject.dir\\lexer.cpp.obj -c C:\\Users\\user\\theoryproject\\lexer.cpp",
+  "file": "C:/Users/user/theoryproject/lexer.cpp",
+  "output": "CMakeFiles/TheoryProject.dir/lexer.cpp.obj"
+},
+{
+  "directory": "C:/Users/user/theoryproject/build",
+  "command": "C:\\msys64\\ucrt64\\bin\\g++.exe  @CMakeFiles/TheoryProject.dir/includes_CXX.rsp -g -g -std=gnu++17 -Wall -Wextra -pedantic -o CMakeFiles\\TheoryProject.dir\\parser.cpp.obj -c C:\\Users\\user\\theoryproject\\parser.cpp",
+  "file": "C:/Users/user/theoryproject/parser.cpp",
+  "output": "CMakeFiles/TheoryProject.dir/parser.cpp.obj"
+},
+{
+  "directory": "C:/Users/user/theoryproject/build",
+  "command": "C:\\msys64\\ucrt64\\bin\\g++.exe  @CMakeFiles/TheoryProject.dir/includes_CXX.rsp -g -g -std=gnu++17 -Wall -Wextra -pedantic -o CMakeFiles\\TheoryProject.dir\\token.cpp.obj -c C:\\Users\\user\\theoryproject\\token.cpp",
+  "file": "C:/Users/user/theoryproject/token.cpp",
+  "output": "CMakeFiles/TheoryProject.dir/token.cpp.obj"
+},
+{
+  "directory": "C:/Users/user/theoryproject/build",
+  "command": "C:\\msys64\\ucrt64\\bin\\g++.exe  @CMakeFiles/TheoryProject.dir/includes_CXX.rsp -g -g -std=gnu++17 -Wall -Wextra -pedantic -o CMakeFiles\\TheoryProject.dir\\ast.cpp.obj -c C:\\Users\\user\\theoryproject\\ast.cpp",
+  "file": "C:/Users/user/theoryproject/ast.cpp",
+  "output": "CMakeFiles/TheoryProject.dir/ast.cpp.obj"
+},
+{
+  "directory": "C:/Users/user/theoryproject/build",
+  "command": "C:\\msys64\\ucrt64\\bin\\g++.exe  @CMakeFiles/TheoryProject.dir/includes_CXX.rsp -g -g -std=gnu++17 -Wall -Wextra -pedantic -o CMakeFiles\\TheoryProject.dir\\ast_extended.cpp.obj -c C:\\Users\\user\\theoryproject\\ast_extended.cpp",
+  "file": "C:/Users/user/theoryproject/ast_extended.cpp",
+  "output": "CMakeFiles/TheoryProject.dir/ast_extended.cpp.obj"
+},
+{
+  "directory": "C:/Users/user/theoryproject/build",
+  "command": "C:\\msys64\\ucrt64\\bin\\g++.exe  @CMakeFiles/TheoryProject.dir/includes_CXX.rsp -g -g -std=gnu++17 -Wall -Wextra -pedantic -o CMakeFiles\\TheoryProject.dir\\semantic_analyzer.cpp.obj -c C:\\Users\\user\\theoryproject\\semantic_analyzer.cpp",
+  "file": "C:/Users/user/theoryproject/semantic_analyzer.cpp",
+  "output": "CMakeFiles/TheoryProject.dir/semantic_analyzer.cpp.obj"
+},
+{
+  "directory": "C:/Users/user/theoryproject/build",
+  "command": "C:\\msys64\\ucrt64\\bin\\g++.exe  @CMakeFiles/TheoryProject.dir/includes_CXX.rsp -g -g -std=gnu++17 -Wall -Wextra -pedantic -o CMakeFiles\\TheoryProject.dir\\js_code_generator.cpp.obj -c C:\\Users\\user\\theoryproject\\js_code_generator.cpp",
+  "file": "C:/Users/user/theoryproject/js_code_generator.cpp",
+  "output": "CMakeFiles/TheoryProject.dir/js_code_generator.cpp.obj"
+},
+{
+  "directory": "C:/Users/user/theoryproject/build",
+  "command": "C:\\msys64\\ucrt64\\bin\\g++.exe  @CMakeFiles/TheoryProject.dir/includes_CXX.rsp -g -g -std=gnu++17 -Wall -Wextra -pedantic -o CMakeFiles\\TheoryProject.dir\\automata_visualizer.cpp.obj -c C:\\Users\\user\\theoryproject\\automata_visualizer.cpp",
+  "file": "C:/Users/user/theoryproject/automata_visualizer.cpp",
+  "output": "CMakeFiles/TheoryProject.dir/automata_visualizer.cpp.obj"
+}
+]
