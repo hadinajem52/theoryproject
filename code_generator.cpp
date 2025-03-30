@@ -18,8 +18,11 @@ void CodeGenerator::generate(const AST* ast, const std::string& outputFile) {
         // ...existing code...
     } catch (const std::exception& e) {
         throw std::runtime_error(std::string("Code generation error: ") + e.what());
+<<<<<<< HEAD
     } catch (...) {
         throw std::runtime_error("Unknown error occurred during code generation");
+=======
+>>>>>>> e6b947508adc9caf112ff5e077ff371472f5b8e1
     }
 }
 
