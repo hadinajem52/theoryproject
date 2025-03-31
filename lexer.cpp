@@ -82,13 +82,15 @@ std::vector<Token> Lexer::tokenize() {
         if (current == '#') {
             tokens.push_back(handleComment());
         } else if (isalpha(current) || current == '_') {
-            tokens.push_back(handleIdentifier());
+            // Check for f-string before handling as identifier
+            if ((current == 'f' || current == 'F') && pos + 1 < sourceCode.length() && 
+                (sourceCode[pos + 1] == '"' || sourceCode[pos + 1] == '\'')) {
+                tokens.push_back(handleFString());
+            } else {
+                tokens.push_back(handleIdentifier());
+            }
         } else if (isdigit(current)) {
             tokens.push_back(handleNumber());
-        } else if ((current == 'f' || current == 'F') && pos + 1 < sourceCode.length() && 
-                  (sourceCode[pos + 1] == '"' || sourceCode[pos + 1] == '\'')) {
-            // Handle f-string
-            tokens.push_back(handleFString());
         } else if (current == '"' || current == '\'') {
             tokens.push_back(handleString());
         } else if (ispunct(current) && current != '#') {
