@@ -130,6 +130,10 @@ void JSCodeGenerator::visitNode(ASTNode* node) {
 }
 
 void JSCodeGenerator::visitProgram(Program* node) {
+    // Reset all block tracking state
+    blockStack.clear();
+    currentFunctionStack.clear();
+    
     emitLine("// JavaScript code generated from Python");
     emitNewLine();
     
@@ -153,8 +157,7 @@ void JSCodeGenerator::visitBlock(Block* node) {
         visitNode(stmt.get());
     }
     
-    // Always restore the indentation level when exiting a block
-    // This ensures that nested blocks don't affect parent indentation
+    // Restore the indentation level when exiting a block
     indentLevel = startIndentLevel;
 }
 
@@ -207,28 +210,85 @@ void JSCodeGenerator::visitClassDeclaration(ClassDeclaration* node) {
     // Enter class block with proper tracking
     enterBlock(CLASS);
     
-    // Add constructor if needed
+    // Process methods - track which ones are special methods
     bool hasConstructor = false;
+    std::vector<FunctionDeclaration*> methods;
+    
+    // First pass - identify constructor and collect methods
     for (auto& stmt : node->body->statements) {
         if (auto funcDecl = dynamic_cast<FunctionDeclaration*>(stmt.get())) {
             if (funcDecl->name == "__init__") {
                 hasConstructor = true;
-                break;
             }
+            methods.push_back(funcDecl);
         }
     }
     
+    // Generate constructor first if it exists
+    for (auto method : methods) {
+        if (method->name == "__init__") {
+            // Start constructor
+            emitLine("constructor(" + getFunctionParameterList(method->parameters, true) + ") {");
+            
+            // Generate constructor body
+            enterBlock(FUNCTION);
+            visitNode(method->body.get());
+            exitBlock();
+            
+            emitLine("}");
+            emitNewLine();
+        }
+    }
+    
+    // If no constructor found, generate default constructor
     if (!hasConstructor) {
         emitLine("constructor() {");
         emitLine("}");
+        emitNewLine();
     }
     
-    // Generate class body
-    visitNode(node->body.get());
-    exitBlock();
+    // Generate other methods
+    for (auto method : methods) {
+        if (method->name != "__init__") {
+            std::string methodName = method->name;
+            if (isSpecialMethod(methodName)) {
+                // Map special Python methods to JS equivalents
+                static const std::unordered_map<std::string, std::string> methodMap = {
+                    {"__str__", "toString"},
+                    {"__repr__", "toString"},
+                    {"__len__", "length"},
+                    {"__get__", "get"},
+                    {"__set__", "set"}
+                };
+                
+                auto it = methodMap.find(methodName);
+                if (it != methodMap.end()) {
+                    methodName = it->second;
+                }
+            }
+            
+            // Generate method signature
+            emitLine(methodName + "(" + getFunctionParameterList(method->parameters, true) + ") {");
+            
+            // Generate method body
+            enterBlock(FUNCTION);
+            visitNode(method->body.get());
+            exitBlock();
+            
+            emitLine("}");
+            emitNewLine();
+        }
+    }
     
+    // Process non-method statements in class body
+    for (auto& stmt : node->body->statements) {
+        if (!dynamic_cast<FunctionDeclaration*>(stmt.get())) {
+            visitNode(stmt.get());
+        }
+    }
+    
+    exitBlock();
     emitLine("}");
-    emitNewLine();
 }
 
 void JSCodeGenerator::visitIfStatement(IfStatement* node) {
@@ -350,7 +410,23 @@ void JSCodeGenerator::visitAssignmentStatement(AssignmentStatement* node) {
     if (auto idTarget = dynamic_cast<Identifier*>(node->target.get())) {
         // Use the proper JavaScript variable declaration
         std::string declarationKeyword = settings.useConstForVariables ? "const" : "let";
-        emitLine(declarationKeyword + " " + target + " = " + value + ";");
+        
+        // Check if we're in a loop/block where we shouldn't redeclare
+        bool redeclare = false;
+        for (auto blockType : blockStack) {
+            if (blockType == FOR || blockType == WHILE) {
+                redeclare = true;
+                break;
+            }
+        }
+        
+        if (redeclare) {
+            // Simple assignment without redeclaration
+            emitLine(target + " = " + value + ";");
+        } else {
+            // New variable declaration
+            emitLine(declarationKeyword + " " + target + " = " + value + ";");
+        }
     } else {
         // For other targets (member expressions, subscript expressions)
         emitLine(target + " = " + value + ";");
@@ -380,9 +456,10 @@ void JSCodeGenerator::visitTryExceptStatement(TryExceptStatement* node) {
         } else {
             // In JavaScript, we can't directly filter by exception type,
             // so we add a runtime check inside the catch block
+            std::string jsExceptionType = translatePythonExceptionType(catchBlock.exceptionType);
             emitLine("} catch (" + catchVar + ") {");
             enterBlock(TRY);
-            emitLine("if (!(" + catchVar + " instanceof " + catchBlock.exceptionType + ")) {");
+            emitLine("if (!(" + catchVar + " instanceof " + jsExceptionType + ")) {");
             emitLine("  throw " + catchVar + "; // Re-throw if not the right type");
             emitLine("}");
             exitBlock();
@@ -425,6 +502,8 @@ std::string JSCodeGenerator::generateExpression(Expression* node) {
         return generateSubscriptExpression(subscriptExprNode);
     } else if (auto listExprNode = dynamic_cast<ListExpression*>(node)) {
         return generateListExpression(listExprNode);
+    } else if (auto listCompNode = dynamic_cast<ListComprehension*>(node)) {
+        return generateListComprehension(listCompNode);
     } else if (auto dictExprNode = dynamic_cast<DictExpression*>(node)) {
         return generateDictExpression(dictExprNode);
     } else if (auto fstringNode = dynamic_cast<FStringLiteral*>(node)) {
@@ -487,9 +566,17 @@ std::string JSCodeGenerator::generateUnaryExpression(UnaryExpression* node) {
 std::string JSCodeGenerator::generateCallExpression(CallExpression* node) {
     std::string callee = generateExpression(node->callee.get());
     
+    // Check if this appears to be a class constructor call
+    bool isConstructorCall = false;
+    if (auto identCallee = dynamic_cast<Identifier*>(node->callee.get())) {
+        // Simple heuristic: constructor calls usually have PascalCase names
+        isConstructorCall = isLikelyConstructor(identCallee->name);
+    }
+    
     // Handle special Python built-ins
     if (callee == "print") {
         callee = "console.log";
+        isConstructorCall = false;
     } else if (callee == "range") {
         // Convert Python's range to JavaScript Array.from with mapping
         if (node->arguments.size() == 1) {
@@ -506,6 +593,7 @@ std::string JSCodeGenerator::generateCallExpression(CallExpression* node) {
             return "Array.from({length: Math.ceil((" + stop + " - " + start + ") / " + step + ")}, " +
                    "(_, i) => " + start + " + i * " + step + ")";
         }
+        isConstructorCall = false;
     }
     
     // Generate arguments
@@ -515,7 +603,12 @@ std::string JSCodeGenerator::generateCallExpression(CallExpression* node) {
         args += generateExpression(node->arguments[i].get());
     }
     
-    return callee + "(" + args + ")";
+    // Add 'new' for constructor calls
+    if (isConstructorCall) {
+        return "new " + callee + "(" + args + ")";
+    } else {
+        return callee + "(" + args + ")";
+    }
 }
 
 std::string JSCodeGenerator::generateMemberExpression(MemberExpression* node) {
@@ -551,6 +644,23 @@ std::string JSCodeGenerator::generateListExpression(ListExpression* node) {
     return "[" + elements + "]";
 }
 
+std::string JSCodeGenerator::generateListComprehension(ListComprehension* node) {
+    std::string iterable = generateExpression(node->iterable.get());
+    std::string variable = generateExpression(node->variable.get());
+    std::string expression = generateExpression(node->expression.get());
+    
+    std::string result = iterable + ".map(" + variable + " => " + expression + ")";
+    
+    // Add filter if condition exists
+    if (node->condition) {
+        std::string condition = generateExpression(node->condition.get());
+        result = iterable + ".filter(" + variable + " => " + condition + ").map(" + 
+                variable + " => " + expression + ")";
+    }
+    
+    return result;
+}
+
 std::string JSCodeGenerator::generateDictExpression(DictExpression* node) {
     std::string entries;
     for (size_t i = 0; i < node->entries.size(); i++) {
@@ -582,7 +692,23 @@ std::string JSCodeGenerator::generateFStringLiteral(FStringLiteral* node) {
     // Process each part of the f-string
     for (const auto& part : node->getParts()) {
         if (part.isExpression) {
-            // For expression parts, add ${expression}
+            // Process expressions in f-strings to replace self with this
+            if (auto memberExpr = dynamic_cast<MemberExpression*>(part.expression.get())) {
+                // Handle self.attribute expressions
+                if (auto objIdent = dynamic_cast<Identifier*>(memberExpr->object.get())) {
+                    if (objIdent->name == "self") {
+                        result += "${this." + memberExpr->property + "}";
+                        continue;
+                    }
+                }
+            } else if (auto identExpr = dynamic_cast<Identifier*>(part.expression.get())) {
+                if (identExpr->name == "self") {
+                    result += "${this}";
+                    continue;
+                }
+            }
+            
+            // Default handling for other expressions
             result += "${" + generateExpression(part.expression.get()) + "}";
         } else {
             // For text parts, escape backticks and add the text directly
@@ -680,6 +806,33 @@ bool JSCodeGenerator::isSpecialMethod(const std::string& name) {
     }
     
     return false;
+}
+
+bool JSCodeGenerator::isLikelyConstructor(const std::string& name) const {
+    return !name.empty() && std::isupper(name[0]);
+}
+
+std::string JSCodeGenerator::translatePythonExceptionType(const std::string& pythonType) {
+    // Map Python exception types to JavaScript equivalents
+    static const std::unordered_map<std::string, std::string> exceptionMap = {
+        {"Exception", "Error"},
+        {"ValueError", "Error"},
+        {"TypeError", "TypeError"},
+        {"IndexError", "RangeError"},
+        {"KeyError", "Error"},
+        {"ZeroDivisionError", "Error"},
+        {"RuntimeError", "Error"},
+        {"IOError", "Error"},
+        {"OSError", "Error"},
+        {"FileNotFoundError", "Error"},
+        {"ImportError", "Error"},
+        {"SyntaxError", "SyntaxError"},
+        {"NameError", "ReferenceError"},
+        {"AttributeError", "TypeError"}
+    };
+    
+    auto it = exceptionMap.find(pythonType);
+    return it != exceptionMap.end() ? it->second : "Error";
 }
 
 std::string JSCodeGenerator::getJavaScriptOperator(BinaryExpression::Operator op) {

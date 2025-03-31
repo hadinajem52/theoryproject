@@ -11,18 +11,18 @@ if ((x > 5)) {
   console.log("x is less than 5");
   for (let i of Array.from({length: 5}, (_, i) => i)) {
     console.log(`Loop iteration ${i}`);
-    const counter = 0;
+    counter = 0;
     while ((counter < 3)) {
       console.log(`While loop: ${counter}`);
-      const counter = (counter + 1);
+      counter = (counter + 1);
       function greet(name, greeting = "Hello") {
         return `${greeting}, ${name}!`;
         console.log(greet("World"));
         console.log(greet("Python", "Welcome to"));
-        const numbers = [1, 2, 3, 4, 5];
-        const doubled = /* Unknown expression */;
+        numbers = [1, 2, 3, 4, 5];
+        doubled = numbers.map(num => (num * 2));
         console.log(doubled);
-        const person = {"name": "Alice", "age": 30, "languages": ["Python", "JavaScript"]};
+        person = {"name": "Alice", "age": 30, "languages": ["Python", "JavaScript"]};
         console.log(`Person: ${person['name']}, Age: ${person['age']}`);
         class Animal {
           constructor(name) {
@@ -32,14 +32,15 @@ if ((x > 5)) {
               class Dog extends Animal {
                 constructor() {
                 }
+
                 speak() {
                   console.log(`${self.name} barks`);
-                  const fido = Dog("Fido");
+                  fido = new Dog("Fido");
                   fido.speak();
                   try {
-                    const result = (10 / 0);
+                    result = (10 / 0);
                   } catch (e) {
-                    if (!(e instanceof ZeroDivisionError)) {
+                    if (!(e instanceof Error)) {
                       throw e; // Re-throw if not the right type
                     }
                     console.log("Cannot divide by zero");
@@ -49,13 +50,11 @@ if ((x > 5)) {
                 }
 
               }
-
             }
 
           }
 
         }
-
       }
 
     }

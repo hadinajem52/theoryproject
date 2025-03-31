@@ -78,6 +78,7 @@ private:
     std::string generateMemberExpression(MemberExpression* node);
     std::string generateSubscriptExpression(SubscriptExpression* node);
     std::string generateListExpression(ListExpression* node);
+    std::string generateListComprehension(ListComprehension* node);  // New method
     std::string generateDictExpression(DictExpression* node);
     std::string generateFStringLiteral(FStringLiteral* node);
     
@@ -86,7 +87,9 @@ private:
         const std::vector<FunctionDeclaration::Parameter>& params,
         bool skipSelf = false);
     std::string translatePythonBuiltIn(const std::string& name);
+    std::string translatePythonExceptionType(const std::string& pythonType);
     bool isSpecialMethod(const std::string& name);
+    bool isLikelyConstructor(const std::string& name) const;
     std::string getJavaScriptOperator(BinaryExpression::Operator op);
     std::string getJavaScriptOperator(UnaryExpression::Operator op);
 };
