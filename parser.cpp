@@ -80,8 +80,21 @@ std::unique_ptr<ASTNode> Parser::parse() {
 std::unique_ptr<Program> Parser::parseProgram() {
     std::vector<std::unique_ptr<ASTNode>> statements;
     
+    // Skip any leading newlines
+    while (match(Token::NEWLINE)) {
+        // Continue skipping consecutive newlines
+    }
+    
     while (!check(Token::END_OF_FILE)) {
-        statements.push_back(parseStatement());
+        // Skip any DEDENT tokens between top-level statements
+        while (match(Token::DEDENT)) {
+            // Skip these DEDENT tokens
+        }
+        
+        auto stmt = parseStatement();
+        if (stmt) {  // Check if statement is not null
+            statements.push_back(std::move(stmt));
+        }
     }
     
     return std::make_unique<Program>(std::move(statements));
@@ -89,6 +102,15 @@ std::unique_ptr<Program> Parser::parseProgram() {
 
 std::unique_ptr<Statement> Parser::parseStatement() {
     currentState = {STATEMENT, "STATEMENT"};
+    
+    // Skip empty lines (consecutive newlines) and DEDENT tokens
+    while (match(Token::NEWLINE) || match(Token::DEDENT)) {
+        // Continue skipping newlines and dedents
+    }
+    
+    if (current >= tokens.size()) {
+        return nullptr; // End of file reached after newlines
+    }
     
     if (match(Token::KEYWORD_DEF)) {
         return parseFunctionDeclaration();
@@ -119,6 +141,8 @@ std::unique_ptr<Statement> Parser::parseStatement() {
         consume(Token::NEWLINE, "Expected newline after 'pass'");
         // Pass is a no-op, represented by an empty block
         return std::make_unique<Block>(std::vector<std::unique_ptr<Statement>>());
+    } else if (check(Token::END_OF_FILE)) {
+        return nullptr; // End of file reached
     } else {
         // Expression statement
         return parseExpressionStatement();
@@ -337,14 +361,45 @@ std::unique_ptr<Block> Parser::parseBlock() {
 std::unique_ptr<Statement> Parser::parseExpressionStatement() {
     std::unique_ptr<Expression> expr = parseExpression();
     
-    // Handle assignment
-    if (match(Token::OP_ASSIGN)) {
+    // Handle all assignment types (=, +=, -=, etc.)
+    if (match({Token::OP_ASSIGN, Token::OP_PLUS_ASSIGN, Token::OP_MINUS_ASSIGN, 
+              Token::OP_MULTIPLY_ASSIGN, Token::OP_DIVIDE_ASSIGN, Token::OP_MODULO_ASSIGN})) {
         auto target = std::move(expr);
+        Token::Type assignType = tokens[current - 1].type;
         auto value = parseExpression();
         
         // Check for EOF or consume newline
         if (!check(Token::END_OF_FILE)) {
             consume(Token::NEWLINE, "Expected newline after assignment");
+        }
+        
+        // For compound assignments (+=, -=, etc.), we need to create the equivalent
+        // of: a = a + b, a = a - b, etc.
+        if (assignType != Token::OP_ASSIGN) {
+            BinaryExpression::Operator op;
+            
+            // Map each compound assignment to its binary operator
+            switch (assignType) {
+                case Token::OP_PLUS_ASSIGN: op = BinaryExpression::ADD; break;
+                case Token::OP_MINUS_ASSIGN: op = BinaryExpression::SUBTRACT; break;
+                case Token::OP_MULTIPLY_ASSIGN: op = BinaryExpression::MULTIPLY; break;
+                case Token::OP_DIVIDE_ASSIGN: op = BinaryExpression::DIVIDE; break;
+                case Token::OP_MODULO_ASSIGN: op = BinaryExpression::MODULO; break;
+                default: op = BinaryExpression::ADD; break; // Shouldn't happen
+            }
+            
+            // Create a target clone for the right side of the operation
+            auto targetClone = target->clone();
+            
+            // Create compound expression (a + b, a - b, etc.)
+            auto compoundExpr = std::make_unique<BinaryExpression>(
+                op, 
+                std::move(targetClone), 
+                std::move(value)
+            );
+            
+            // Make this the value of the assignment
+            return std::make_unique<AssignmentStatement>(std::move(target), std::move(compoundExpr));
         }
         
         return std::make_unique<AssignmentStatement>(std::move(target), std::move(value));
@@ -597,13 +652,77 @@ std::unique_ptr<Expression> Parser::parsePrimary() {
     throw error(peek(), "Expected expression");
 }
 
-std::unique_ptr<ListExpression> Parser::parseListLiteral() {
+std::unique_ptr<Expression> Parser::parseListLiteral() {
     std::vector<std::unique_ptr<Expression>> elements;
     
-    if (!check(Token::SEP_RBRACKET)) {
-        do {
-            elements.push_back(parseExpression());
-        } while (match(Token::SEP_COMMA) && !check(Token::SEP_RBRACKET));
+    // Skip any newlines or indentation after the opening bracket
+    while (match(Token::NEWLINE) || match(Token::INDENT)) {
+        // Skip these tokens
+    }
+    
+    // Check for empty list
+    if (check(Token::SEP_RBRACKET)) {
+        consume(Token::SEP_RBRACKET, "Expected ']' after list elements");
+        return std::make_unique<ListExpression>(std::move(elements));
+    }
+    
+    // Parse the first expression
+    auto firstExpr = parseExpression();
+    
+    // Check if this is a list comprehension
+    if (match(Token::KEYWORD_FOR)) {
+        // This is a list comprehension
+        // Parse the target variable
+        auto variable = parseExpression();
+        
+        // Consume "in"
+        consume(Token::KEYWORD_IN, "Expected 'in' after for variable in list comprehension");
+        
+        // Parse the iterable
+        auto iterable = parseExpression();
+        
+        // Check for optional "if" condition
+        std::unique_ptr<Expression> condition = nullptr;
+        if (match(Token::KEYWORD_IF)) {
+            condition = parseExpression();
+        }
+        
+        // Skip any newlines or dedents before the closing bracket
+        while (match(Token::NEWLINE) || match(Token::INDENT) || match(Token::DEDENT)) {
+            // Skip these tokens
+        }
+        
+        // Consume the closing bracket
+        consume(Token::SEP_RBRACKET, "Expected ']' after list comprehension");
+        
+        // Create a ListComprehension node
+        return std::make_unique<ListComprehension>(
+            std::move(firstExpr),  // The expression to evaluate for each item
+            std::move(variable),   // The iteration variable
+            std::move(iterable),   // The iterable collection
+            std::move(condition)   // Optional condition (may be null)
+        );
+    }
+    
+    // Regular list - add the first expression we already parsed
+    elements.push_back(std::move(firstExpr));
+    
+    // Parse remaining elements if any
+    while (match(Token::SEP_COMMA)) {
+        // Skip any newlines or indentation after comma
+        while (match(Token::NEWLINE) || match(Token::INDENT) || match(Token::DEDENT)) {
+            // Skip these tokens
+        }
+        
+        if (check(Token::SEP_RBRACKET)) {
+            break; // Allow trailing comma
+        }
+        elements.push_back(parseExpression());
+    }
+    
+    // Skip any newlines or dedents before the closing bracket
+    while (match(Token::NEWLINE) || match(Token::INDENT) || match(Token::DEDENT)) {
+        // Skip these tokens
     }
     
     consume(Token::SEP_RBRACKET, "Expected ']' after list elements");
@@ -614,8 +733,18 @@ std::unique_ptr<ListExpression> Parser::parseListLiteral() {
 std::unique_ptr<DictExpression> Parser::parseDictLiteral() {
     std::vector<DictExpression::KeyValuePair> entries;
     
+    // Skip any newlines or indentation after the opening brace
+    while (match(Token::NEWLINE) || match(Token::INDENT)) {
+        // Skip these tokens
+    }
+    
     if (!check(Token::SEP_RBRACE)) {
         do {
+            // Skip any newlines or indentation before the key
+            while (match(Token::NEWLINE) || match(Token::INDENT)) {
+                // Skip these tokens
+            }
+            
             auto key = parseExpression();
             consume(Token::SEP_COLON, "Expected ':' after dict key");
             auto value = parseExpression();
@@ -625,7 +754,18 @@ std::unique_ptr<DictExpression> Parser::parseDictLiteral() {
             pair.value = std::move(value);
             
             entries.push_back(std::move(pair));
+            
+            // Skip any newlines or indentation after the value
+            while (match(Token::NEWLINE) || match(Token::INDENT) || match(Token::DEDENT)) {
+                // Skip these tokens
+            }
+            
         } while (match(Token::SEP_COMMA) && !check(Token::SEP_RBRACE));
+        
+        // Skip any trailing newlines, indentation, or dedents before the closing brace
+        while (match(Token::NEWLINE) || match(Token::INDENT) || match(Token::DEDENT)) {
+            // Skip these tokens
+        }
     }
     
     consume(Token::SEP_RBRACE, "Expected '}' after dict entries");

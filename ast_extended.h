@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <sstream>
 
 // Variable assignment
 class AssignmentStatement : public Statement {
@@ -55,6 +56,15 @@ public:
         : callee(std::move(callee)), arguments(std::move(arguments)) {}
         
     std::string toString() const override;
+    
+    std::unique_ptr<Expression> clone() const override {
+        auto clonedCallee = callee->clone();
+        std::vector<std::unique_ptr<Expression>> clonedArgs;
+        for (const auto& arg : arguments) {
+            clonedArgs.push_back(arg->clone());
+        }
+        return std::make_unique<CallExpression>(std::move(clonedCallee), std::move(clonedArgs));
+    }
     
     std::unique_ptr<Expression> callee;
     std::vector<std::unique_ptr<Expression>> arguments;
@@ -157,6 +167,10 @@ public:
         
     std::string toString() const override;
     
+    std::unique_ptr<Expression> clone() const override {
+        return std::make_unique<MemberExpression>(object->clone(), property);
+    }
+    
     std::unique_ptr<Expression> object;
     std::string property;
 };
@@ -169,6 +183,10 @@ public:
         
     std::string toString() const override;
     
+    std::unique_ptr<Expression> clone() const override {
+        return std::make_unique<SubscriptExpression>(object->clone(), index->clone());
+    }
+    
     std::unique_ptr<Expression> object;
     std::unique_ptr<Expression> index;
 };
@@ -180,6 +198,14 @@ public:
         : elements(std::move(elements)) {}
         
     std::string toString() const override;
+    
+    std::unique_ptr<Expression> clone() const override {
+        std::vector<std::unique_ptr<Expression>> clonedElements;
+        for (const auto& element : elements) {
+            clonedElements.push_back(element->clone());
+        }
+        return std::make_unique<ListExpression>(std::move(clonedElements));
+    }
     
     std::vector<std::unique_ptr<Expression>> elements;
 };
@@ -195,6 +221,17 @@ public:
         : entries(std::move(entries)) {}
         
     std::string toString() const override;
+    
+    std::unique_ptr<Expression> clone() const override {
+        std::vector<KeyValuePair> clonedEntries;
+        for (const auto& entry : entries) {
+            KeyValuePair clonedEntry;
+            clonedEntry.key = entry.key->clone();
+            clonedEntry.value = entry.value->clone();
+            clonedEntries.push_back(std::move(clonedEntry));
+        }
+        return std::make_unique<DictExpression>(std::move(clonedEntries));
+    }
     
     std::vector<KeyValuePair> entries;
 };
@@ -237,6 +274,10 @@ public:
     
     std::string toString() const override;
     
+    std::unique_ptr<Expression> clone() const override {
+        return std::make_unique<FStringLiteral>(rawValue);
+    }
+    
     std::string getRawValue() const { return rawValue; }
     const std::vector<Part>& getParts() const { return parts; }
     
@@ -246,4 +287,43 @@ private:
     
     void parseContent(const std::string& content);
     std::string extractExpressionText(const std::string& content, size_t& pos);
+};
+
+// List comprehension [expr for var in iterable if condition]
+class ListComprehension : public Expression {
+public:
+    ListComprehension(
+        std::unique_ptr<Expression> expression,
+        std::unique_ptr<Expression> variable,
+        std::unique_ptr<Expression> iterable,
+        std::unique_ptr<Expression> condition = nullptr
+    ) : expression(std::move(expression)),
+        variable(std::move(variable)),
+        iterable(std::move(iterable)),
+        condition(std::move(condition)) {}
+        
+    std::string toString() const override {
+        std::stringstream ss;
+        ss << "ListComprehension([" << expression->toString() << " for ";
+        ss << variable->toString() << " in " << iterable->toString();
+        if (condition) {
+            ss << " if " << condition->toString();
+        }
+        ss << "])";
+        return ss.str();
+    }
+
+    std::unique_ptr<Expression> clone() const override {
+        return std::make_unique<ListComprehension>(
+            expression->clone(),
+            variable->clone(),
+            iterable->clone(),
+            condition ? condition->clone() : nullptr
+        );
+    }
+
+    std::unique_ptr<Expression> expression;
+    std::unique_ptr<Expression> variable;
+    std::unique_ptr<Expression> iterable;
+    std::unique_ptr<Expression> condition;
 };

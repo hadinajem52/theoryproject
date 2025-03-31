@@ -489,6 +489,7 @@ CMakeFiles/TheoryProject.dir/automata_visualizer.cpp.obj: C:/Users/user/theorypr
   C:/msys64/ucrt64/include/c++/14.2.0/bits/shared_ptr_atomic.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/shared_ptr_base.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/specfun.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/bits/sstream.tcc \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/std_abs.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_algo.h \
   C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_algobase.h \
@@ -560,6 +561,7 @@ CMakeFiles/TheoryProject.dir/automata_visualizer.cpp.obj: C:/Users/user/theorypr
   C:/msys64/ucrt64/include/c++/14.2.0/pstl/glue_algorithm_defs.h \
   C:/msys64/ucrt64/include/c++/14.2.0/pstl/glue_memory_defs.h \
   C:/msys64/ucrt64/include/c++/14.2.0/pstl/pstl_config.h \
+  C:/msys64/ucrt64/include/c++/14.2.0/sstream \
   C:/msys64/ucrt64/include/c++/14.2.0/stack \
   C:/msys64/ucrt64/include/c++/14.2.0/stdexcept \
   C:/msys64/ucrt64/include/c++/14.2.0/stdlib.h \

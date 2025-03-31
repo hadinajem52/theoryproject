@@ -269,6 +269,10 @@ CMakeFiles/TheoryProject.dir/automata_visualizer.cpp.obj: \
  C:/msys64/ucrt64/include/c++/14.2.0/bits/enable_special_members.h \
  C:\Users\user\theoryproject\parser.h C:\Users\user\theoryproject\ast.h \
  C:\Users\user\theoryproject\ast_extended.h \
+ C:/msys64/ucrt64/include/c++/14.2.0/sstream \
+ C:/msys64/ucrt64/include/c++/14.2.0/istream \
+ C:/msys64/ucrt64/include/c++/14.2.0/bits/istream.tcc \
+ C:/msys64/ucrt64/include/c++/14.2.0/bits/sstream.tcc \
  C:/msys64/ucrt64/include/c++/14.2.0/cmath \
  C:/msys64/ucrt64/include/math.h \
  C:/msys64/ucrt64/include/c++/14.2.0/bits/specfun.h \
@@ -285,6 +289,4 @@ CMakeFiles/TheoryProject.dir/automata_visualizer.cpp.obj: \
  C:/msys64/ucrt64/include/c++/14.2.0/tr1/poly_hermite.tcc \
  C:/msys64/ucrt64/include/c++/14.2.0/tr1/poly_laguerre.tcc \
  C:/msys64/ucrt64/include/c++/14.2.0/tr1/riemann_zeta.tcc \
- C:/msys64/ucrt64/include/c++/14.2.0/iostream \
- C:/msys64/ucrt64/include/c++/14.2.0/istream \
- C:/msys64/ucrt64/include/c++/14.2.0/bits/istream.tcc
+ C:/msys64/ucrt64/include/c++/14.2.0/iostream

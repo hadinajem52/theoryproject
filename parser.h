@@ -97,7 +97,7 @@ private:
     std::unique_ptr<Expression> parseUnary();
     std::unique_ptr<Expression> parseCall();
     std::unique_ptr<Expression> parsePrimary();
-    std::unique_ptr<ListExpression> parseListLiteral();
+    std::unique_ptr<Expression> parseListLiteral();
     std::unique_ptr<DictExpression> parseDictLiteral();
     
     // Error reporting

@@ -28,6 +28,7 @@ public:
 class Expression : public ASTNode {
 public:
     virtual ~Expression() = default;
+    virtual std::unique_ptr<Expression> clone() const = 0;
 };
 
 // Statement is the base class for all statements
@@ -51,6 +52,10 @@ public:
         
     std::string toString() const override;
     
+    std::unique_ptr<Expression> clone() const override {
+        return std::make_unique<Literal>(type, value);
+    }
+    
     LiteralType type;
     std::string value;
 };
@@ -61,6 +66,10 @@ public:
     Identifier(const std::string& name) : name(name) {}
     
     std::string toString() const override;
+    
+    std::unique_ptr<Expression> clone() const override {
+        return std::make_unique<Identifier>(name);
+    }
     
     std::string name;
 };
@@ -79,6 +88,14 @@ public:
         
     std::string toString() const override;
     
+    std::unique_ptr<Expression> clone() const override {
+        return std::make_unique<BinaryExpression>(
+            op,
+            left->clone(),
+            right->clone()
+        );
+    }
+    
     Operator op;
     std::unique_ptr<Expression> left;
     std::unique_ptr<Expression> right;
@@ -95,6 +112,10 @@ public:
         : op(op), operand(std::move(operand)) {}
         
     std::string toString() const override;
+    
+    std::unique_ptr<Expression> clone() const override {
+        return std::make_unique<UnaryExpression>(op, operand->clone());
+    }
     
     Operator op;
     std::unique_ptr<Expression> operand;

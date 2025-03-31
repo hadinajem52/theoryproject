@@ -180,11 +180,11 @@ CMakeFiles/TheoryProject.dir/main.cpp.obj: \
  C:/msys64/ucrt64/include/c++/14.2.0/bits/stl_stack.h \
  C:\Users\user\theoryproject\ast.h \
  C:\Users\user\theoryproject\ast_extended.h \
+ C:/msys64/ucrt64/include/c++/14.2.0/sstream \
+ C:/msys64/ucrt64/include/c++/14.2.0/bits/sstream.tcc \
  C:\Users\user\theoryproject\parser.h \
  C:\Users\user\theoryproject\semantic_analyzer.h \
  C:\Users\user\theoryproject\js_code_generator.h \
- C:/msys64/ucrt64/include/c++/14.2.0/sstream \
- C:/msys64/ucrt64/include/c++/14.2.0/bits/sstream.tcc \
  C:\Users\user\theoryproject\automata_visualizer.h \
  C:/msys64/ucrt64/include/SFML/Graphics.hpp \
  C:/msys64/ucrt64/include/SFML/Window.hpp \
