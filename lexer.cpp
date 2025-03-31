@@ -129,11 +129,11 @@ std::vector<Token> Lexer::tokenize() {
     return tokens;
 }
 
-char Lexer::peek() const {
-    if (pos >= sourceCode.length()) {
+char Lexer::peek(int offset) const {
+    if (pos + offset >= sourceCode.length()) {
         return '\0'; // End of input
     }
-    return sourceCode[pos];
+    return sourceCode[pos + offset];
 }
 
 char Lexer::advance() {

@@ -43,7 +43,7 @@ private:
     State currentState;
     
     // Helper methods for tokenization
-    char peek() const;
+    char peek(int offset = 0) const;
     char advance();
     bool match(char expected);
     void skipWhitespace();
