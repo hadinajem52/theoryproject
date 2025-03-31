@@ -559,6 +559,11 @@ std::unique_ptr<Expression> Parser::parsePrimary() {
             Literal::STRING, 
             tokens[current - 1].value
         );
+    } else if (match(Token::LITERAL_FSTRING)) {
+        // Handle f-string literals
+        return std::make_unique<FStringLiteral>(
+            tokens[current - 1].value
+        );
     } else if (match(Token::KEYWORD_TRUE)) {
         return std::make_unique<Literal>(
             Literal::BOOLEAN, 

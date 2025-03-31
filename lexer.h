@@ -52,6 +52,7 @@ private:
     Token handleIdentifier();
     Token handleNumber();
     Token handleString();
+    Token handleFString(); // New method to handle f-strings
     Token handleOperator();
     Token handleComment();
     std::vector<Token> handleIndentation(const std::string& line);

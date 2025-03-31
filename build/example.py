@@ -1,2 +1,2 @@
-x = 242
-print(x)
+name = input("What's your name? ")
+print(f"Hello, {name}! Welcome to the world of Python.")

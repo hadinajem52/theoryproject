@@ -85,6 +85,10 @@ std::vector<Token> Lexer::tokenize() {
             tokens.push_back(handleIdentifier());
         } else if (isdigit(current)) {
             tokens.push_back(handleNumber());
+        } else if ((current == 'f' || current == 'F') && pos + 1 < sourceCode.length() && 
+                  (sourceCode[pos + 1] == '"' || sourceCode[pos + 1] == '\'')) {
+            // Handle f-string
+            tokens.push_back(handleFString());
         } else if (current == '"' || current == '\'') {
             tokens.push_back(handleString());
         } else if (ispunct(current) && current != '#') {
@@ -239,6 +243,45 @@ Token Lexer::handleString() {
     advance(); // Consume the closing quote
     
     return Token(Token::LITERAL_STRING, str, startLine, startColumn);
+}
+
+Token Lexer::handleFString() {
+    int startLine = line;
+    int startColumn = column;
+    
+    // Consume the 'f' or 'F' prefix
+    advance();
+    
+    char quoteType = advance(); // Either ' or "
+    std::string str;
+    
+    // Consume the string content
+    while (peek() != quoteType && peek() != '\0' && peek() != '\n') {
+        if (peek() == '\\' && pos + 1 < sourceCode.length()) {
+            advance(); // Skip the backslash
+            switch (peek()) {
+                case 'n': str += '\n'; break;
+                case 't': str += '\t'; break;
+                case 'r': str += '\r'; break;
+                case '\'': str += '\''; break;
+                case '\"': str += '\"'; break;
+                case '\\': str += '\\'; break;
+                default: str += peek(); break;
+            }
+        } else {
+            str += peek();
+        }
+        advance();
+    }
+    
+    // Check if the string was closed properly
+    if (peek() != quoteType) {
+        return Token(Token::ERROR, "Unterminated f-string", startLine, startColumn);
+    }
+    
+    advance(); // Consume the closing quote
+    
+    return Token(Token::LITERAL_FSTRING, str, startLine, startColumn);
 }
 
 Token Lexer::handleOperator() {

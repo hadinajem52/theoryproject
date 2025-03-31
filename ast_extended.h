@@ -220,3 +220,18 @@ public:
     std::vector<std::string> items;
     std::string alias;
 };
+
+// F-String Literal representation
+class FStringLiteral : public Expression {
+public:
+    FStringLiteral(const std::string& value) : value(value) {}
+    
+    std::string toString() const override {
+        return "f\"" + value + "\"";
+    }
+    
+    std::string getValue() const { return value; }
+    
+private:
+    std::string value;
+};
