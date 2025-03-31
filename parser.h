@@ -84,6 +84,7 @@ private:
     std::unique_ptr<Statement> parseWhileStatement();
     std::unique_ptr<Statement> parseForStatement();
     std::unique_ptr<Statement> parseReturnStatement();
+    std::unique_ptr<Statement> parseTryStatement();
     std::unique_ptr<Block> parseBlock();
     std::unique_ptr<Statement> parseExpressionStatement();
     std::unique_ptr<Expression> parseExpression();

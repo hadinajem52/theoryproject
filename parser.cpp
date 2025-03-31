@@ -141,6 +141,10 @@ std::unique_ptr<Statement> Parser::parseStatement() {
         consume(Token::NEWLINE, "Expected newline after 'pass'");
         // Pass is a no-op, represented by an empty block
         return std::make_unique<Block>(std::vector<std::unique_ptr<Statement>>());
+    } else if (check(Token::IDENTIFIER) && peek().value == "try") {
+        // Try statement - check but don't consume the token
+        match(Token::IDENTIFIER); // Now consume it since we've confirmed it's "try"
+        return parseTryStatement();
     } else if (check(Token::END_OF_FILE)) {
         return nullptr; // End of file reached
     } else {
@@ -361,15 +365,22 @@ std::unique_ptr<Block> Parser::parseBlock() {
 std::unique_ptr<Statement> Parser::parseExpressionStatement() {
     std::unique_ptr<Expression> expr = parseExpression();
     
-    // Handle all assignment types (=, +=, -=, etc.)
-    if (match({Token::OP_ASSIGN, Token::OP_PLUS_ASSIGN, Token::OP_MINUS_ASSIGN, 
-              Token::OP_MULTIPLY_ASSIGN, Token::OP_DIVIDE_ASSIGN, Token::OP_MODULO_ASSIGN})) {
+    // Handle assignments
+    if (check(Token::OP_ASSIGN) || 
+        check(Token::OP_PLUS_ASSIGN) || 
+        check(Token::OP_MINUS_ASSIGN) ||
+        check(Token::OP_MULTIPLY_ASSIGN) || 
+        check(Token::OP_DIVIDE_ASSIGN) || 
+        check(Token::OP_MODULO_ASSIGN)) {
+        
         auto target = std::move(expr);
-        Token::Type assignType = tokens[current - 1].type;
+        Token::Type assignType = peek().type;
+        advance(); // Consume the assignment operator
+        
         auto value = parseExpression();
         
-        // Check for EOF or consume newline
-        if (!check(Token::END_OF_FILE)) {
+        // Check for EOF or DEDENT or consume newline
+        if (!check(Token::END_OF_FILE) && !check(Token::DEDENT)) {
             consume(Token::NEWLINE, "Expected newline after assignment");
         }
         
@@ -406,8 +417,8 @@ std::unique_ptr<Statement> Parser::parseExpressionStatement() {
     }
     
     // Regular expression statement
-    // Check for EOF or consume newline
-    if (!check(Token::END_OF_FILE)) {
+    // Check for EOF or DEDENT or consume newline
+    if (!check(Token::END_OF_FILE) && !check(Token::DEDENT)) {
         consume(Token::NEWLINE, "Expected newline after expression");
     }
     
@@ -771,6 +782,73 @@ std::unique_ptr<DictExpression> Parser::parseDictLiteral() {
     consume(Token::SEP_RBRACE, "Expected '}' after dict entries");
     
     return std::make_unique<DictExpression>(std::move(entries));
+}
+
+std::unique_ptr<Statement> Parser::parseTryStatement() {
+    // No need to consume the 'try' keyword here anymore since we did it in parseStatement
+    
+    // Consume the colon and newline
+    consume(Token::SEP_COLON, "Expected ':' after 'try'");
+    consume(Token::NEWLINE, "Expected newline after 'try' statement");
+    
+    // Parse try block
+    auto tryBlock = parseBlock();
+    
+    // Parse except blocks
+    std::vector<TryExceptStatement::CatchBlock> catchBlocks;
+    
+    // Skip any newlines or DEDENTs before checking for except
+    while (match(Token::NEWLINE) || match(Token::DEDENT)) {
+        // Skip these tokens
+    }
+    
+    while (check(Token::IDENTIFIER) && peek().value == "except") {
+        match(Token::IDENTIFIER); // Consume the "except" token
+        
+        TryExceptStatement::CatchBlock catchBlock;
+        
+        // Check if there's an exception type
+        if (!check(Token::SEP_COLON)) {
+            if (match(Token::IDENTIFIER)) {
+                catchBlock.exceptionType = tokens[current-1].value;
+                
+                // Check for 'as variable'
+                if (match(Token::IDENTIFIER) && tokens[current-1].value == "as") {
+                    Token var = consume(Token::IDENTIFIER, "Expected variable name after 'as'");
+                    catchBlock.variable = var.value;
+                }
+            }
+        }
+        
+        // Parse except block
+        consume(Token::SEP_COLON, "Expected ':' after 'except'");
+        consume(Token::NEWLINE, "Expected newline after 'except' statement");
+        catchBlock.body = parseBlock();
+        
+        catchBlocks.push_back(std::move(catchBlock));
+        
+        // Skip any newlines or DEDENTs after the except block
+        while (match(Token::NEWLINE) || match(Token::DEDENT)) {
+            // Skip these tokens
+        }
+    }
+    
+    // Parse optional finally block
+    std::unique_ptr<Block> finallyBlock = nullptr;
+    
+    if (check(Token::IDENTIFIER) && peek().value == "finally") {
+        match(Token::IDENTIFIER); // Consume the "finally" token
+        
+        consume(Token::SEP_COLON, "Expected ':' after 'finally'");
+        consume(Token::NEWLINE, "Expected newline after 'finally' statement");
+        finallyBlock = parseBlock();
+    }
+    
+    return std::make_unique<TryExceptStatement>(
+        std::move(tryBlock),
+        std::move(catchBlocks),
+        std::move(finallyBlock)
+    );
 }
 
 // Helper methods for token handling

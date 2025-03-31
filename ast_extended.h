@@ -327,3 +327,42 @@ public:
     std::unique_ptr<Expression> iterable;
     std::unique_ptr<Expression> condition;
 };
+
+// Try-Except Statement for exception handling
+class TryExceptStatement : public Statement {
+public:
+    struct CatchBlock {
+        std::string exceptionType;
+        std::string variable;
+        std::unique_ptr<Block> body;
+    };
+    
+    TryExceptStatement(
+        std::unique_ptr<Block> tryBlock,
+        std::vector<CatchBlock> catchBlocks,
+        std::unique_ptr<Block> finallyBlock = nullptr
+    ) : tryBlock(std::move(tryBlock)),
+        catchBlocks(std::move(catchBlocks)),
+        finallyBlock(std::move(finallyBlock)) {}
+        
+    std::string toString() const override {
+        std::stringstream ss;
+        ss << "TryExceptStatement(try=" << tryBlock->toString();
+        for (const auto& cb : catchBlocks) {
+            ss << ", except " << cb.exceptionType;
+            if (!cb.variable.empty()) {
+                ss << " as " << cb.variable;
+            }
+            ss << "=" << cb.body->toString();
+        }
+        if (finallyBlock) {
+            ss << ", finally=" << finallyBlock->toString();
+        }
+        ss << ")";
+        return ss.str();
+    }
+    
+    std::unique_ptr<Block> tryBlock;
+    std::vector<CatchBlock> catchBlocks;
+    std::unique_ptr<Block> finallyBlock;
+};
