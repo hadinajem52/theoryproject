@@ -20,6 +20,9 @@ std::string JSCodeGenerator::generate(ASTNode* ast) {
     // Start code generation
     visitNode(ast);
     
+    // Validate indentation at the end to ensure it's balanced
+    validateIndentation();
+    
     return output.str();
 }
 
@@ -33,11 +36,27 @@ JSCodeGenerator::Settings JSCodeGenerator::getSettings() const {
 
 void JSCodeGenerator::indent() {
     indentLevel++;
+    // Add a guard to prevent excessive indentation which might indicate a nesting issue
+    if (indentLevel > 20) {  // 20 is arbitrary, but reasonable for most code
+        std::cerr << "Warning: Excessive indentation level " << indentLevel << std::endl;
+    }
 }
 
 void JSCodeGenerator::dedent() {
     if (indentLevel > 0) {
         indentLevel--;
+    } else {
+        // Log if we try to dedent below zero, which indicates a nesting issue
+        std::cerr << "Error: Attempted to dedent below zero" << std::endl;
+    }
+}
+
+// Add a method to ensure indentation is balanced
+void JSCodeGenerator::validateIndentation() {
+    if (indentLevel != 0) {
+        std::cerr << "Warning: Unbalanced indentation. Level: " << indentLevel << std::endl;
+        // Reset to avoid cascading formatting errors
+        indentLevel = 0;
     }
 }
 
@@ -90,6 +109,8 @@ void JSCodeGenerator::visitNode(ASTNode* node) {
         visitAssignmentStatement(assignmentStmtNode);
     } else if (auto exprStmtNode = dynamic_cast<ExpressionStatement*>(node)) {
         visitExpressionStatement(exprStmtNode);
+    } else if (auto tryExceptStmtNode = dynamic_cast<TryExceptStatement*>(node)) {
+        visitTryExceptStatement(tryExceptStmtNode);
     } else {
         emitLine("// Unknown node type");
     }
@@ -101,13 +122,26 @@ void JSCodeGenerator::visitProgram(Program* node) {
     
     for (auto& stmt : node->statements) {
         visitNode(stmt.get());
+        
+        // Add newline after top-level declarations for better readability
+        if (dynamic_cast<FunctionDeclaration*>(stmt.get()) ||
+            dynamic_cast<ClassDeclaration*>(stmt.get()) ||
+            dynamic_cast<ImportStatement*>(stmt.get())) {
+            emitNewLine();
+        }
     }
 }
 
 void JSCodeGenerator::visitBlock(Block* node) {
+    // Track the indentation level at the start of the block
+    int startIndentLevel = indentLevel;
+    
     for (auto& stmt : node->statements) {
         visitNode(stmt.get());
     }
+    
+    // Always restore the indentation level when exiting a block
+    indentLevel = startIndentLevel;
 }
 
 void JSCodeGenerator::visitFunctionDeclaration(FunctionDeclaration* node) {
@@ -116,13 +150,21 @@ void JSCodeGenerator::visitFunctionDeclaration(FunctionDeclaration* node) {
     // Generate function declaration
     std::string functionHeader;
     
-    if (!currentFunctionStack.empty() && currentFunctionStack.size() > 1 && 
-        isSpecialMethod(node->name)) {
+    if (!currentFunctionStack.empty() && currentFunctionStack.size() > 1) {
         // Class method
-        functionHeader = node->name + "(" + getFunctionParameterList(node->parameters) + ") {";
+        if (node->name == "__init__") {
+            // Convert Python's __init__ to JavaScript's constructor
+            functionHeader = "constructor(" + getFunctionParameterList(node->parameters, true) + ") {";
+        } else if (isSpecialMethod(node->name)) {
+            // Handle other special methods
+            functionHeader = node->name + "(" + getFunctionParameterList(node->parameters, true) + ") {";
+        } else {
+            // Regular class method
+            functionHeader = node->name + "(" + getFunctionParameterList(node->parameters, true) + ") {";
+        }
     } else {
-        // Regular function
-        functionHeader = "function " + node->name + "(" + getFunctionParameterList(node->parameters) + ") {";
+        // Regular function - keep all parameters
+        functionHeader = "function " + node->name + "(" + getFunctionParameterList(node->parameters, false) + ") {";
     }
     
     emitLine(functionHeader);
@@ -292,9 +334,9 @@ void JSCodeGenerator::visitAssignmentStatement(AssignmentStatement* node) {
     
     // Check if this is a declaration or assignment
     if (auto idTarget = dynamic_cast<Identifier*>(node->target.get())) {
-        // Assume variable declaration for simple identifiers
-        // In JavaScript we'd use let or const, but in general case we'll use let
-        emitLine("let " + target + " = " + value + ";");
+        // Use the proper JavaScript variable declaration
+        std::string declarationKeyword = settings.useConstForVariables ? "const" : "let";
+        emitLine(declarationKeyword + " " + target + " = " + value + ";");
     } else {
         // For other targets (member expressions, subscript expressions)
         emitLine(target + " = " + value + ";");
@@ -303,6 +345,51 @@ void JSCodeGenerator::visitAssignmentStatement(AssignmentStatement* node) {
 
 void JSCodeGenerator::visitExpressionStatement(ExpressionStatement* node) {
     emitLine(generateExpression(node->expression.get()) + ";");
+}
+
+void JSCodeGenerator::visitTryExceptStatement(TryExceptStatement* node) {
+    // Start try block
+    emitLine("try {");
+    
+    // Generate try body
+    indent();
+    visitNode(node->tryBlock.get());
+    dedent();
+    
+    // Generate catch blocks
+    for (const auto& catchBlock : node->catchBlocks) {
+        std::string catchVar = catchBlock.variable.empty() ? "e" : catchBlock.variable;
+        
+        if (catchBlock.exceptionType.empty()) {
+            // Generic catch block (catches all exceptions)
+            emitLine("} catch (" + catchVar + ") {");
+        } else {
+            // In JavaScript, we can't directly filter by exception type,
+            // so we add a runtime check inside the catch block
+            emitLine("} catch (" + catchVar + ") {");
+            indent();
+            emitLine("if (!(" + catchVar + " instanceof " + catchBlock.exceptionType + ")) {");
+            emitLine("  throw " + catchVar + "; // Re-throw if not the right type");
+            emitLine("}");
+            dedent();
+        }
+        
+        // Generate catch block body
+        indent();
+        visitNode(catchBlock.body.get());
+        dedent();
+    }
+    
+    // Generate finally block if it exists
+    if (node->finallyBlock) {
+        emitLine("} finally {");
+        
+        indent();
+        visitNode(node->finallyBlock.get());
+        dedent();
+    }
+    
+    emitLine("}");
 }
 
 std::string JSCodeGenerator::generateExpression(Expression* node) {
@@ -336,6 +423,11 @@ std::string JSCodeGenerator::generateExpression(Expression* node) {
 std::string JSCodeGenerator::generateIdentifier(Identifier* node) {
     // Translate Python built-ins to JavaScript equivalents
     std::string name = node->name;
+    
+    // Replace self with this in methods
+    if (name == "self" && !currentFunctionStack.empty() && currentFunctionStack.size() > 1) {
+        return "this";
+    }
     
     // Special handling for Python built-ins
     return translatePythonBuiltIn(name);
@@ -380,11 +472,28 @@ std::string JSCodeGenerator::generateUnaryExpression(UnaryExpression* node) {
 std::string JSCodeGenerator::generateCallExpression(CallExpression* node) {
     std::string callee = generateExpression(node->callee.get());
     
-    // Handle special cases like print() -> console.log()
+    // Handle special Python built-ins
     if (callee == "print") {
         callee = "console.log";
+    } else if (callee == "range") {
+        // Convert Python's range to JavaScript Array.from with mapping
+        if (node->arguments.size() == 1) {
+            // range(stop)
+            std::string stop = generateExpression(node->arguments[0].get());
+            return "Array.from({length: " + stop + "}, (_, i) => i)";
+        } else if (node->arguments.size() >= 2) {
+            // range(start, stop[, step])
+            std::string start = generateExpression(node->arguments[0].get());
+            std::string stop = generateExpression(node->arguments[1].get());
+            std::string step = (node->arguments.size() > 2) ? 
+                              generateExpression(node->arguments[2].get()) : "1";
+            
+            return "Array.from({length: Math.ceil((" + stop + " - " + start + ") / " + step + ")}, " +
+                   "(_, i) => " + start + " + i * " + step + ")";
+        }
     }
     
+    // Generate arguments
     std::string args;
     for (size_t i = 0; i < node->arguments.size(); i++) {
         if (i > 0) args += ", ";
@@ -417,6 +526,7 @@ std::string JSCodeGenerator::generateSubscriptExpression(SubscriptExpression* no
 }
 
 std::string JSCodeGenerator::generateListExpression(ListExpression* node) {
+    // Standard list literal
     std::string elements;
     for (size_t i = 0; i < node->elements.size(); i++) {
         if (i > 0) elements += ", ";
@@ -484,20 +594,20 @@ std::string JSCodeGenerator::generateFStringLiteral(FStringLiteral* node) {
     return result;
 }
 
-std::string JSCodeGenerator::getFunctionParameterList(const std::vector<FunctionDeclaration::Parameter>& params) {
-    std::string paramList;
+std::string JSCodeGenerator::getFunctionParameterList(
+    const std::vector<FunctionDeclaration::Parameter>& params,
+    bool skipSelf) {
     
-    // In Python, the first parameter of a method is 'self', which is equivalent to 'this' in JavaScript
-    // We don't want to include it in the parameter list
-    bool isClassMethod = !currentFunctionStack.empty() && currentFunctionStack.size() > 1;
+    std::string paramList;
+    bool isFirst = true;
     
     for (size_t i = 0; i < params.size(); i++) {
-        // Skip 'self' parameter in methods
-        if (i == 0 && isClassMethod && (params[i].name == "self" || params[i].name == "cls")) {
+        // Skip 'self' or 'cls' parameter in methods if skipSelf is true
+        if (skipSelf && i == 0 && (params[i].name == "self" || params[i].name == "cls")) {
             continue;
         }
         
-        if (i > 0 || (i == 0 && isClassMethod && (params[0].name == "self" || params[0].name == "cls"))) {
+        if (!isFirst) {
             paramList += ", ";
         }
         
@@ -507,6 +617,8 @@ std::string JSCodeGenerator::getFunctionParameterList(const std::vector<Function
             // Handle default parameters
             paramList += " = " + generateExpression(params[i].defaultValue.get());
         }
+        
+        isFirst = false;
     }
     
     return paramList;

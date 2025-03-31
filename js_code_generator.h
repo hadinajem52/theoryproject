@@ -38,6 +38,7 @@ private:
     // Utility methods
     void indent();
     void dedent();
+    void validateIndentation();  // Added this method declaration
     std::string getIndent() const;
     void emit(const std::string& code);
     void emitLine(const std::string& code);
@@ -58,6 +59,7 @@ private:
     void visitImportStatement(ImportStatement* node);
     void visitAssignmentStatement(AssignmentStatement* node);
     void visitExpressionStatement(ExpressionStatement* node);
+    void visitTryExceptStatement(TryExceptStatement* node);
     
     // Expression visitor methods
     std::string generateExpression(Expression* node);
@@ -70,10 +72,12 @@ private:
     std::string generateSubscriptExpression(SubscriptExpression* node);
     std::string generateListExpression(ListExpression* node);
     std::string generateDictExpression(DictExpression* node);
-    std::string generateFStringLiteral(FStringLiteral* node); // New method for f-strings
+    std::string generateFStringLiteral(FStringLiteral* node);
     
     // Helper methods
-    std::string getFunctionParameterList(const std::vector<FunctionDeclaration::Parameter>& params);
+    std::string getFunctionParameterList(
+        const std::vector<FunctionDeclaration::Parameter>& params,
+        bool skipSelf = false);
     std::string translatePythonBuiltIn(const std::string& name);
     bool isSpecialMethod(const std::string& name);
     std::string getJavaScriptOperator(BinaryExpression::Operator op);
