@@ -224,14 +224,26 @@ public:
 // F-String Literal representation
 class FStringLiteral : public Expression {
 public:
-    FStringLiteral(const std::string& value) : value(value) {}
+    struct Part {
+        bool isExpression;
+        std::string text;                      // Used when isExpression is false
+        std::unique_ptr<Expression> expression; // Used when isExpression is true
+        
+        Part(const std::string& text) : isExpression(false), text(text) {}
+        Part(std::unique_ptr<Expression> expr) : isExpression(true), expression(std::move(expr)) {}
+    };
     
-    std::string toString() const override {
-        return "f\"" + value + "\"";
-    }
+    FStringLiteral(const std::string& value);
     
-    std::string getValue() const { return value; }
+    std::string toString() const override;
+    
+    std::string getRawValue() const { return rawValue; }
+    const std::vector<Part>& getParts() const { return parts; }
     
 private:
-    std::string value;
+    std::string rawValue;
+    std::vector<Part> parts;
+    
+    void parseContent(const std::string& content);
+    std::string extractExpressionText(const std::string& content, size_t& pos);
 };

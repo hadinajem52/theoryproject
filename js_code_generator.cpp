@@ -326,6 +326,8 @@ std::string JSCodeGenerator::generateExpression(Expression* node) {
         return generateListExpression(listExprNode);
     } else if (auto dictExprNode = dynamic_cast<DictExpression*>(node)) {
         return generateDictExpression(dictExprNode);
+    } else if (auto fstringNode = dynamic_cast<FStringLiteral*>(node)) {
+        return generateFStringLiteral(fstringNode);
     }
     
     return "/* Unknown expression */";
@@ -445,6 +447,41 @@ std::string JSCodeGenerator::generateDictExpression(DictExpression* node) {
     }
     
     return "{" + entries + "}";
+}
+
+std::string JSCodeGenerator::generateFStringLiteral(FStringLiteral* node) {
+    if (!node) return "``";
+    
+    std::string result = "`";  // JavaScript template literals use backticks
+    
+    // Process each part of the f-string
+    for (const auto& part : node->getParts()) {
+        if (part.isExpression) {
+            // For expression parts, add ${expression}
+            result += "${" + generateExpression(part.expression.get()) + "}";
+        } else {
+            // For text parts, escape backticks and add the text directly
+            std::string escapedText = part.text;
+            // Replace backticks with escaped backticks
+            size_t pos = 0;
+            while ((pos = escapedText.find('`', pos)) != std::string::npos) {
+                escapedText.replace(pos, 1, "\\`");
+                pos += 2;
+            }
+            
+            // Replace ${...} with \${...} to prevent JavaScript interpretation
+            pos = 0;
+            while ((pos = escapedText.find("${", pos)) != std::string::npos) {
+                escapedText.replace(pos, 2, "\\${");
+                pos += 3;
+            }
+            
+            result += escapedText;
+        }
+    }
+    
+    result += "`";
+    return result;
 }
 
 std::string JSCodeGenerator::getFunctionParameterList(const std::vector<FunctionDeclaration::Parameter>& params) {

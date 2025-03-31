@@ -70,6 +70,7 @@ private:
     std::string generateSubscriptExpression(SubscriptExpression* node);
     std::string generateListExpression(ListExpression* node);
     std::string generateDictExpression(DictExpression* node);
+    std::string generateFStringLiteral(FStringLiteral* node); // New method for f-strings
     
     // Helper methods
     std::string getFunctionParameterList(const std::vector<FunctionDeclaration::Parameter>& params);
