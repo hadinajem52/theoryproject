@@ -130,14 +130,20 @@ void JSCodeGenerator::visitNode(ASTNode* node) {
 }
 
 void JSCodeGenerator::visitProgram(Program* node) {
-    // Reset all block tracking state
+    // Reset all state
+    output.str("");
+    output.clear();
+    indentLevel = 0;
     blockStack.clear();
     currentFunctionStack.clear();
+    importedModules.clear();
     
     emitLine("// JavaScript code generated from Python");
     emitNewLine();
     
+    // Process each statement at the top level
     for (auto& stmt : node->statements) {
+        // Process each statement independently at the top level
         visitNode(stmt.get());
         
         // Add newline after top-level declarations for better readability
@@ -147,18 +153,21 @@ void JSCodeGenerator::visitProgram(Program* node) {
             emitNewLine();
         }
     }
+    
+    // Final validation
+    validateIndentation();
 }
 
 void JSCodeGenerator::visitBlock(Block* node) {
-    // Track the indentation level at the start of the block
-    int startIndentLevel = indentLevel;
+    // Important: Save current indent level before processing block
+    int savedIndentLevel = indentLevel;
     
     for (auto& stmt : node->statements) {
         visitNode(stmt.get());
     }
     
-    // Restore the indentation level when exiting a block
-    indentLevel = startIndentLevel;
+    // Restore indent level after processing all statements in block
+    indentLevel = savedIndentLevel;
 }
 
 void JSCodeGenerator::visitFunctionDeclaration(FunctionDeclaration* node) {
@@ -210,11 +219,10 @@ void JSCodeGenerator::visitClassDeclaration(ClassDeclaration* node) {
     // Enter class block with proper tracking
     enterBlock(CLASS);
     
-    // Process methods - track which ones are special methods
+    // Collect all methods first to identify constructor
     bool hasConstructor = false;
     std::vector<FunctionDeclaration*> methods;
     
-    // First pass - identify constructor and collect methods
     for (auto& stmt : node->body->statements) {
         if (auto funcDecl = dynamic_cast<FunctionDeclaration*>(stmt.get())) {
             if (funcDecl->name == "__init__") {
@@ -227,7 +235,10 @@ void JSCodeGenerator::visitClassDeclaration(ClassDeclaration* node) {
     // Generate constructor first if it exists
     for (auto method : methods) {
         if (method->name == "__init__") {
-            // Start constructor
+            // Push class name and method name for context
+            currentFunctionStack.push_back(node->name);
+            currentFunctionStack.push_back("constructor");
+            
             emitLine("constructor(" + getFunctionParameterList(method->parameters, true) + ") {");
             
             // Generate constructor body
@@ -237,19 +248,20 @@ void JSCodeGenerator::visitClassDeclaration(ClassDeclaration* node) {
             
             emitLine("}");
             emitNewLine();
+            
+            // Reset context
+            currentFunctionStack.pop_back(); // method name
+            currentFunctionStack.pop_back(); // class name
         }
     }
     
-    // If no constructor found, generate default constructor
-    if (!hasConstructor) {
-        emitLine("constructor() {");
-        emitLine("}");
-        emitNewLine();
-    }
-    
-    // Generate other methods
+    // Generate other methods (importantly, outside the constructor)
     for (auto method : methods) {
         if (method->name != "__init__") {
+            // Push class name and method name for context
+            currentFunctionStack.push_back(node->name);
+            currentFunctionStack.push_back(method->name);
+            
             std::string methodName = method->name;
             if (isSpecialMethod(methodName)) {
                 // Map special Python methods to JS equivalents
@@ -277,6 +289,10 @@ void JSCodeGenerator::visitClassDeclaration(ClassDeclaration* node) {
             
             emitLine("}");
             emitNewLine();
+            
+            // Reset context
+            currentFunctionStack.pop_back(); // method name
+            currentFunctionStack.pop_back(); // class name
         }
     }
     
@@ -295,7 +311,7 @@ void JSCodeGenerator::visitIfStatement(IfStatement* node) {
     // Generate if condition
     emitLine("if (" + generateExpression(node->ifBranch.condition.get()) + ") {");
     
-    // Generate if body with proper block tracking
+    // Enter and process if body
     enterBlock(IF);
     visitNode(node->ifBranch.body.get());
     exitBlock();
@@ -411,22 +427,8 @@ void JSCodeGenerator::visitAssignmentStatement(AssignmentStatement* node) {
         // Use the proper JavaScript variable declaration
         std::string declarationKeyword = settings.useConstForVariables ? "const" : "let";
         
-        // Check if we're in a loop/block where we shouldn't redeclare
-        bool redeclare = false;
-        for (auto blockType : blockStack) {
-            if (blockType == FOR || blockType == WHILE) {
-                redeclare = true;
-                break;
-            }
-        }
-        
-        if (redeclare) {
-            // Simple assignment without redeclaration
-            emitLine(target + " = " + value + ";");
-        } else {
-            // New variable declaration
-            emitLine(declarationKeyword + " " + target + " = " + value + ";");
-        }
+        // Simple assignment
+        emitLine(declarationKeyword + " " + target + " = " + value + ";");
     } else {
         // For other targets (member expressions, subscript expressions)
         emitLine(target + " = " + value + ";");
@@ -649,13 +651,17 @@ std::string JSCodeGenerator::generateListComprehension(ListComprehension* node) 
     std::string variable = generateExpression(node->variable.get());
     std::string expression = generateExpression(node->expression.get());
     
-    std::string result = iterable + ".map(" + variable + " => " + expression + ")";
+    // Implementation of Python list comprehension as JavaScript Array.map
+    std::string result;
     
-    // Add filter if condition exists
     if (node->condition) {
+        // If there's a condition, use filter before map
         std::string condition = generateExpression(node->condition.get());
         result = iterable + ".filter(" + variable + " => " + condition + ").map(" + 
                 variable + " => " + expression + ")";
+    } else {
+        // Simple mapping without filtering
+        result = iterable + ".map(" + variable + " => " + expression + ")";
     }
     
     return result;
@@ -692,24 +698,30 @@ std::string JSCodeGenerator::generateFStringLiteral(FStringLiteral* node) {
     // Process each part of the f-string
     for (const auto& part : node->getParts()) {
         if (part.isExpression) {
-            // Process expressions in f-strings to replace self with this
+            // Handle self → this conversion in various expression contexts
+            std::string exprStr;
+            
             if (auto memberExpr = dynamic_cast<MemberExpression*>(part.expression.get())) {
-                // Handle self.attribute expressions
                 if (auto objIdent = dynamic_cast<Identifier*>(memberExpr->object.get())) {
                     if (objIdent->name == "self") {
-                        result += "${this." + memberExpr->property + "}";
-                        continue;
+                        exprStr = "this." + memberExpr->property;
+                    } else {
+                        exprStr = generateExpression(part.expression.get());
                     }
+                } else {
+                    exprStr = generateExpression(part.expression.get());
                 }
             } else if (auto identExpr = dynamic_cast<Identifier*>(part.expression.get())) {
                 if (identExpr->name == "self") {
-                    result += "${this}";
-                    continue;
+                    exprStr = "this";
+                } else {
+                    exprStr = generateExpression(part.expression.get());
                 }
+            } else {
+                exprStr = generateExpression(part.expression.get());
             }
             
-            // Default handling for other expressions
-            result += "${" + generateExpression(part.expression.get()) + "}";
+            result += "${" + exprStr + "}";
         } else {
             // For text parts, escape backticks and add the text directly
             std::string escapedText = part.text;

@@ -40,12 +40,56 @@ void Parser::initAutomaton() {
     };
 }
 
+// Add this method to help with debugging
+void debugASTStructure(ASTNode* node, int level = 0) {
+    if (!node) return;
+    
+    std::string indent(level * 2, ' ');
+    std::cerr << indent;
+    
+    if (auto program = dynamic_cast<Program*>(node)) {
+        std::cerr << "Program (" << program->statements.size() << " statements)" << std::endl;
+        for (auto& stmt : program->statements) {
+            debugASTStructure(stmt.get(), level + 1);
+        }
+    } else if (auto block = dynamic_cast<Block*>(node)) {
+        std::cerr << "Block (" << block->statements.size() << " statements)" << std::endl;
+        for (auto& stmt : block->statements) {
+            debugASTStructure(stmt.get(), level + 1);
+        }
+    } else if (auto ifStmt = dynamic_cast<IfStatement*>(node)) {
+        std::cerr << "IfStatement" << std::endl;
+        std::cerr << indent << "  Condition: ";
+        debugASTStructure(ifStmt->ifBranch.condition.get(), 0);
+        std::cerr << indent << "  Then: " << std::endl;
+        debugASTStructure(ifStmt->ifBranch.body.get(), level + 2);
+        
+        for (auto& elif : ifStmt->elifBranches) {
+            std::cerr << indent << "  Elif Condition: ";
+            debugASTStructure(elif.condition.get(), 0);
+            std::cerr << indent << "  Elif Body: " << std::endl;
+            debugASTStructure(elif.body.get(), level + 2);
+        }
+        
+        if (ifStmt->elseBranch) {
+            std::cerr << indent << "  Else: " << std::endl;
+            debugASTStructure(ifStmt->elseBranch.get(), level + 2);
+        }
+    } else {
+        std::cerr << "Node of type: " << typeid(*node).name() << std::endl;
+    }
+}
+
 std::unique_ptr<ASTNode> Parser::parse() {
     hasError = false;
     errorMessage = "";
     
     try {
         auto program = parseProgram();
+        
+        // Add debugging to visualize AST structure
+        std::cerr << "AST Structure:" << std::endl;
+        debugASTStructure(program.get());
         
         // Check if we consumed all tokens except EOF
         if (current < tokens.size() - 1) {
@@ -78,17 +122,31 @@ std::unique_ptr<ASTNode> Parser::parse() {
 }
 
 std::unique_ptr<Program> Parser::parseProgram() {
-    std::vector<std::unique_ptr<ASTNode>> statements;
+    std::vector<std::unique_ptr<Statement>> statements;
     
     // Skip any leading newlines
     while (match(Token::NEWLINE)) {
         // Continue skipping consecutive newlines
     }
     
+    // Keep track of the current indentation level
+    int programIndentLevel = 0;
+    
     while (!check(Token::END_OF_FILE)) {
         // Skip any DEDENT tokens between top-level statements
         while (match(Token::DEDENT)) {
+            programIndentLevel--;
             // Skip these DEDENT tokens
+        }
+        
+        // Skip any newlines between statements
+        while (match(Token::NEWLINE)) {
+            // Skip newlines
+        }
+        
+        // Stop at EOF
+        if (check(Token::END_OF_FILE)) {
+            break;
         }
         
         auto stmt = parseStatement();
@@ -279,18 +337,31 @@ std::unique_ptr<Statement> Parser::parseIfStatement() {
     
     // Elif branches
     std::vector<IfStatement::Branch> elifBranches;
-    while (match(Token::KEYWORD_ELIF)) {
+    
+    // Skip newlines before checking for elif/else
+    while (match(Token::NEWLINE)) {
+        // Skip these newlines
+    }
+    
+    while (check(Token::KEYWORD_ELIF)) {
+        match(Token::KEYWORD_ELIF); // Consume the elif token
         auto elifCondition = parseExpression();
         consume(Token::SEP_COLON, "Expected ':' after elif condition");
         consume(Token::NEWLINE, "Expected newline after elif statement");
         auto elifBody = parseBlock();
         
         elifBranches.push_back({std::move(elifCondition), std::move(elifBody)});
+        
+        // Skip newlines before checking for next elif/else
+        while (match(Token::NEWLINE)) {
+            // Skip these newlines
+        }
     }
     
     // Else branch
     std::unique_ptr<Block> elseBranch = nullptr;
-    if (match(Token::KEYWORD_ELSE)) {
+    if (check(Token::KEYWORD_ELSE)) {
+        match(Token::KEYWORD_ELSE); // Consume the else token
         consume(Token::SEP_COLON, "Expected ':' after else");
         consume(Token::NEWLINE, "Expected newline after else statement");
         elseBranch = parseBlock();
@@ -349,13 +420,26 @@ std::unique_ptr<Block> Parser::parseBlock() {
     
     std::vector<std::unique_ptr<Statement>> statements;
     
-    // Parse statements until we hit a DEDENT
+    // Parse statements until we hit a DEDENT or EOF
     while (!check(Token::DEDENT) && !check(Token::END_OF_FILE)) {
-        statements.push_back(parseStatement());
+        // Skip any newlines between statements in the block
+        while (match(Token::NEWLINE)) {
+            // Skip these newlines
+        }
+        
+        // Check again after skipping newlines
+        if (check(Token::DEDENT) || check(Token::END_OF_FILE)) {
+            break;
+        }
+        
+        auto stmt = parseStatement();
+        if (stmt) {
+            statements.push_back(std::move(stmt));
+        }
     }
     
-    // Consume the DEDENT
-    if (!check(Token::END_OF_FILE)) {
+    // Consume the DEDENT token if present
+    if (check(Token::DEDENT)) {
         consume(Token::DEDENT, "Expected dedent at end of block");
     }
     

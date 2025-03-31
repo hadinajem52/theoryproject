@@ -9,54 +9,54 @@ if ((x > 5)) {
   console.log("x equals 5");
 } else {
   console.log("x is less than 5");
-  for (let i of Array.from({length: 5}, (_, i) => i)) {
-    console.log(`Loop iteration ${i}`);
-    counter = 0;
-    while ((counter < 3)) {
-      console.log(`While loop: ${counter}`);
-      counter = (counter + 1);
-      function greet(name, greeting = "Hello") {
-        return `${greeting}, ${name}!`;
-        console.log(greet("World"));
-        console.log(greet("Python", "Welcome to"));
-        numbers = [1, 2, 3, 4, 5];
-        doubled = numbers.map(num => (num * 2));
-        console.log(doubled);
-        person = {"name": "Alice", "age": 30, "languages": ["Python", "JavaScript"]};
-        console.log(`Person: ${person['name']}, Age: ${person['age']}`);
-        class Animal {
-          constructor(name) {
-            this.name = name;
-            speak() {
-              console.log(`${self.name} makes a sound`);
-              class Dog extends Animal {
-                constructor() {
-                }
+}
+for (let i of Array.from({length: 5}, (_, i) => i)) {
+  console.log(`Loop iteration ${i}`);
+}
+const counter = 0;
+while ((counter < 3)) {
+  console.log(`While loop: ${counter}`);
+  const counter = (counter + 1);
+}
+function greet(name, greeting = "Hello") {
+  return `${greeting}, ${name}!`;
+}
 
-                speak() {
-                  console.log(`${self.name} barks`);
-                  fido = new Dog("Fido");
-                  fido.speak();
-                  try {
-                    result = (10 / 0);
-                  } catch (e) {
-                    if (!(e instanceof Error)) {
-                      throw e; // Re-throw if not the right type
-                    }
-                    console.log("Cannot divide by zero");
-                  } finally {
-                    console.log("This always executes");
-                  }
-                }
 
-              }
-            }
-
-          }
-
-        }
-      }
-
-    }
+console.log(greet("World"));
+console.log(greet("Python", "Welcome to"));
+const numbers = [1, 2, 3, 4, 5];
+const doubled = numbers.map(num => (num * 2));
+console.log(doubled);
+const person = {"name": "Alice", "age": 30, "languages": ["Python", "JavaScript"]};
+console.log(`Person: ${person['name']}, Age: ${person['age']}`);
+class Animal {
+  constructor(name) {
+    this.name = name;
   }
+
+  speak() {
+    console.log(`${self.name} makes a sound`);
+  }
+
+}
+
+class Dog extends Animal {
+  speak() {
+    console.log(`${self.name} barks`);
+  }
+
+}
+
+const fido = new Dog("Fido");
+fido.speak();
+try {
+  const result = (10 / 0);
+} catch (e) {
+  if (!(e instanceof Error)) {
+    throw e; // Re-throw if not the right type
+  }
+  console.log("Cannot divide by zero");
+} finally {
+  console.log("This always executes");
 }
