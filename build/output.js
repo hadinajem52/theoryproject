@@ -9,7 +9,7 @@ if ((x > 5)) {
   console.log("x equals 5");
 } else {
   console.log("x is less than 5");
-  for (let i of /* Use Array(n).fill().map((_, i) => i) */(5)) {
+  for (let i of Array.from({length: 5}, (_, i) => i)) {
     console.log(`Loop iteration ${i}`);
     const counter = 0;
     while ((counter < 3)) {

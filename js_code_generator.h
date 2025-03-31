@@ -35,6 +35,13 @@ private:
     std::vector<std::string> currentFunctionStack;
     std::unordered_map<std::string, std::vector<std::string>> importedModules;
     
+    // Add block tracking
+    enum BlockType { FUNCTION, CLASS, IF, FOR, WHILE, TRY, OTHER };
+    std::vector<BlockType> blockStack;
+    
+    void enterBlock(BlockType type);
+    void exitBlock();
+    
     // Utility methods
     void indent();
     void dedent();

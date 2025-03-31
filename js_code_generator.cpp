@@ -16,6 +16,7 @@ std::string JSCodeGenerator::generate(ASTNode* ast) {
     indentLevel = 0;
     currentFunctionStack.clear();
     importedModules.clear();
+    blockStack.clear();
     
     // Start code generation
     visitNode(ast);
@@ -80,6 +81,18 @@ void JSCodeGenerator::emitNewLine() {
     output << "\n";
 }
 
+void JSCodeGenerator::enterBlock(BlockType type) {
+    blockStack.push_back(type);
+    indent();
+}
+
+void JSCodeGenerator::exitBlock() {
+    if (!blockStack.empty()) {
+        blockStack.pop_back();
+    }
+    dedent();
+}
+
 void JSCodeGenerator::visitNode(ASTNode* node) {
     if (!node) return;
     
@@ -141,6 +154,7 @@ void JSCodeGenerator::visitBlock(Block* node) {
     }
     
     // Always restore the indentation level when exiting a block
+    // This ensures that nested blocks don't affect parent indentation
     indentLevel = startIndentLevel;
 }
 
@@ -169,10 +183,10 @@ void JSCodeGenerator::visitFunctionDeclaration(FunctionDeclaration* node) {
     
     emitLine(functionHeader);
     
-    // Generate function body
-    indent();
+    // Enter function block with proper tracking
+    enterBlock(FUNCTION);
     visitNode(node->body.get());
-    dedent();
+    exitBlock();
     
     emitLine("}");
     emitNewLine();
@@ -190,6 +204,9 @@ void JSCodeGenerator::visitClassDeclaration(ClassDeclaration* node) {
     classHeader += " {";
     emitLine(classHeader);
     
+    // Enter class block with proper tracking
+    enterBlock(CLASS);
+    
     // Add constructor if needed
     bool hasConstructor = false;
     for (auto& stmt : node->body->statements) {
@@ -202,16 +219,13 @@ void JSCodeGenerator::visitClassDeclaration(ClassDeclaration* node) {
     }
     
     if (!hasConstructor) {
-        indent();
         emitLine("constructor() {");
         emitLine("}");
-        dedent();
     }
     
     // Generate class body
-    indent();
     visitNode(node->body.get());
-    dedent();
+    exitBlock();
     
     emitLine("}");
     emitNewLine();
@@ -221,27 +235,27 @@ void JSCodeGenerator::visitIfStatement(IfStatement* node) {
     // Generate if condition
     emitLine("if (" + generateExpression(node->ifBranch.condition.get()) + ") {");
     
-    // Generate if body
-    indent();
+    // Generate if body with proper block tracking
+    enterBlock(IF);
     visitNode(node->ifBranch.body.get());
-    dedent();
+    exitBlock();
     
     // Generate elif branches
     for (auto& elifBranch : node->elifBranches) {
         emitLine("} else if (" + generateExpression(elifBranch.condition.get()) + ") {");
         
-        indent();
+        enterBlock(IF);
         visitNode(elifBranch.body.get());
-        dedent();
+        exitBlock();
     }
     
     // Generate else branch
     if (node->elseBranch) {
         emitLine("} else {");
         
-        indent();
+        enterBlock(IF);
         visitNode(node->elseBranch.get());
-        dedent();
+        exitBlock();
     }
     
     emitLine("}");
@@ -250,9 +264,9 @@ void JSCodeGenerator::visitIfStatement(IfStatement* node) {
 void JSCodeGenerator::visitWhileStatement(WhileStatement* node) {
     emitLine("while (" + generateExpression(node->condition.get()) + ") {");
     
-    indent();
+    enterBlock(WHILE);
     visitNode(node->body.get());
-    dedent();
+    exitBlock();
     
     emitLine("}");
 }
@@ -264,9 +278,9 @@ void JSCodeGenerator::visitForStatement(ForStatement* node) {
     // Convert Python for-in to JavaScript for-of
     emitLine("for (let " + loopVar + " of " + iterable + ") {");
     
-    indent();
+    enterBlock(FOR);
     visitNode(node->body.get());
-    dedent();
+    exitBlock();
     
     emitLine("}");
 }
@@ -351,10 +365,10 @@ void JSCodeGenerator::visitTryExceptStatement(TryExceptStatement* node) {
     // Start try block
     emitLine("try {");
     
-    // Generate try body
-    indent();
+    // Generate try body with proper block tracking
+    enterBlock(TRY);
     visitNode(node->tryBlock.get());
-    dedent();
+    exitBlock();
     
     // Generate catch blocks
     for (const auto& catchBlock : node->catchBlocks) {
@@ -367,26 +381,26 @@ void JSCodeGenerator::visitTryExceptStatement(TryExceptStatement* node) {
             // In JavaScript, we can't directly filter by exception type,
             // so we add a runtime check inside the catch block
             emitLine("} catch (" + catchVar + ") {");
-            indent();
+            enterBlock(TRY);
             emitLine("if (!(" + catchVar + " instanceof " + catchBlock.exceptionType + ")) {");
             emitLine("  throw " + catchVar + "; // Re-throw if not the right type");
             emitLine("}");
-            dedent();
+            exitBlock();
         }
         
         // Generate catch block body
-        indent();
+        enterBlock(TRY);
         visitNode(catchBlock.body.get());
-        dedent();
+        exitBlock();
     }
     
     // Generate finally block if it exists
     if (node->finallyBlock) {
         emitLine("} finally {");
         
-        indent();
+        enterBlock(TRY);
         visitNode(node->finallyBlock.get());
-        dedent();
+        exitBlock();
     }
     
     emitLine("}");
@@ -424,8 +438,9 @@ std::string JSCodeGenerator::generateIdentifier(Identifier* node) {
     // Translate Python built-ins to JavaScript equivalents
     std::string name = node->name;
     
-    // Replace self with this in methods
-    if (name == "self" && !currentFunctionStack.empty() && currentFunctionStack.size() > 1) {
+    // Replace self with this in all contexts
+    // This is a more consistent approach than only doing it in method contexts
+    if (name == "self") {
         return "this";
     }
     
@@ -637,7 +652,6 @@ std::string JSCodeGenerator::translatePythonBuiltIn(const std::string& name) {
         {"dict", "Object"},
         {"list", "Array"},
         {"print", "console.log"},
-        {"range", "/* Use Array(n).fill().map((_, i) => i) */"},
         {"self", "this"}
     };
     
