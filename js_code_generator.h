@@ -4,6 +4,7 @@
 #include <sstream>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include "ast.h"
 #include "ast_extended.h"
 
@@ -38,6 +39,10 @@ private:
     // Add block tracking
     enum BlockType { FUNCTION, CLASS, IF, FOR, WHILE, TRY, OTHER };
     std::vector<BlockType> blockStack;
+    
+    // Track variable scopes and mutability
+    std::vector<std::unordered_set<std::string>> scopeStack;
+    std::unordered_set<std::string> mutableVariables;
     
     void enterBlock(BlockType type);
     void exitBlock();

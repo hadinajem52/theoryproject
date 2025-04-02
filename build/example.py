@@ -6,13 +6,13 @@ z = x + y * 2
 if x > 5:
     print("x is greater than 5")
 elif x == 5:
-    print("x equalsssssssssssssssssssssssss 5")
+    print("x equals 5")
 else:
-    print("x is lesssssssssssssssssssssssssssssss than 5")
+    print("x is less than 5")
 
 # 3. Loops
 for i in range(5):
-    print(f"Looooooooooooooooooooooooooooooooooooooop iteration {i}")
+    print(f"Looop iteration {i}")
 
 counter = 0
 while counter < 3:

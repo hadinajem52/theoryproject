@@ -3,7 +3,13 @@
 #include <algorithm>
 #include <cctype>
 
-JSCodeGenerator::JSCodeGenerator() {}
+JSCodeGenerator::JSCodeGenerator() {
+    // Initialize the scope stack with global scope
+    scopeStack.push_back({});
+    
+    // Initialize the set of variables that have been marked as mutable
+    mutableVariables = std::unordered_set<std::string>();
+}
 
 std::string JSCodeGenerator::generate(ASTNode* ast) {
     if (!ast) {
@@ -83,12 +89,18 @@ void JSCodeGenerator::emitNewLine() {
 
 void JSCodeGenerator::enterBlock(BlockType type) {
     blockStack.push_back(type);
+    // Add a new scope when entering a block
+    scopeStack.push_back({});
     indent();
 }
 
 void JSCodeGenerator::exitBlock() {
     if (!blockStack.empty()) {
         blockStack.pop_back();
+    }
+    // Remove the scope when exiting a block
+    if (scopeStack.size() > 1) {
+        scopeStack.pop_back();
     }
     dedent();
 }
@@ -424,11 +436,65 @@ void JSCodeGenerator::visitAssignmentStatement(AssignmentStatement* node) {
     
     // Check if this is a declaration or assignment
     if (auto idTarget = dynamic_cast<Identifier*>(node->target.get())) {
-        // Use the proper JavaScript variable declaration
-        std::string declarationKeyword = settings.useConstForVariables ? "const" : "let";
+        std::string varName = idTarget->name;
         
-        // Simple assignment
-        emitLine(declarationKeyword + " " + target + " = " + value + ";");
+        // Check if the variable is already declared in the current or parent scopes
+        bool isDeclared = false;
+        for (const auto& scope : scopeStack) {
+            if (scope.find(varName) != scope.end()) {
+                isDeclared = true;
+                break;
+            }
+        }
+        
+        if (isDeclared) {
+            // Variable is already declared, just assign to it
+            emitLine(target + " = " + value + ";");
+            
+            // Mark this variable as mutable since it's being reassigned
+            mutableVariables.insert(varName);
+        } else {
+            // New variable, add it to the current scope
+            scopeStack.back().insert(varName);
+            
+            // Determine whether to use const or let
+            // Use let if:
+            // 1. The variable name suggests it will be mutable (counter, i, index, etc.)
+            // 2. We're inside a loop block
+            // 3. settings.useConstForVariables is false
+            bool shouldBeMutable = false;
+            
+            // Check if we're in a loop block
+            for (auto blockType : blockStack) {
+                if (blockType == FOR || blockType == WHILE) {
+                    shouldBeMutable = true;
+                    break;
+                }
+            }
+            
+            // Check if the variable name suggests it will be mutated
+            static const std::vector<std::string> mutableNames = {
+                "counter", "count", "i", "j", "k", "idx", "index", "temp", "tmp"
+            };
+            
+            for (const auto& name : mutableNames) {
+                if (varName.find(name) != std::string::npos) {
+                    shouldBeMutable = true;
+                    break;
+                }
+            }
+            
+            // Use appropriate declaration keyword
+            std::string declarationKeyword;
+            if (shouldBeMutable || !settings.useConstForVariables) {
+                declarationKeyword = "let";
+                mutableVariables.insert(varName); // Remember this variable is mutable
+            } else {
+                declarationKeyword = "const";
+            }
+            
+            emitLine(declarationKeyword + " " + target + " = " + value + ";");
+        }
     } else {
         // For other targets (member expressions, subscript expressions)
         emitLine(target + " = " + value + ";");
@@ -452,19 +518,23 @@ void JSCodeGenerator::visitTryExceptStatement(TryExceptStatement* node) {
     for (const auto& catchBlock : node->catchBlocks) {
         std::string catchVar = catchBlock.variable.empty() ? "e" : catchBlock.variable;
         
-        if (catchBlock.exceptionType.empty()) {
+        // Simplified exception handling - don't add type checking unless necessary
+        if (catchBlock.exceptionType.empty() || catchBlock.exceptionType == "Exception") {
             // Generic catch block (catches all exceptions)
             emitLine("} catch (" + catchVar + ") {");
         } else {
-            // In JavaScript, we can't directly filter by exception type,
-            // so we add a runtime check inside the catch block
+            // Only add type checking for specific exception types
             std::string jsExceptionType = translatePythonExceptionType(catchBlock.exceptionType);
             emitLine("} catch (" + catchVar + ") {");
-            enterBlock(TRY);
-            emitLine("if (!(" + catchVar + " instanceof " + jsExceptionType + ")) {");
-            emitLine("  throw " + catchVar + "; // Re-throw if not the right type");
-            emitLine("}");
-            exitBlock();
+            
+            // Only include type checking if the exception is something other than the generic Error
+            if (jsExceptionType != "Error") {
+                enterBlock(TRY);
+                emitLine("if (!(" + catchVar + " instanceof " + jsExceptionType + ")) {");
+                emitLine("  throw " + catchVar + "; // Re-throw if not the right type");
+                emitLine("}");
+                exitBlock();
+            }
         }
         
         // Generate catch block body
@@ -519,8 +589,7 @@ std::string JSCodeGenerator::generateIdentifier(Identifier* node) {
     // Translate Python built-ins to JavaScript equivalents
     std::string name = node->name;
     
-    // Replace self with this in all contexts
-    // This is a more consistent approach than only doing it in method contexts
+    // Always replace self with this
     if (name == "self") {
         return "this";
     }
@@ -617,6 +686,11 @@ std::string JSCodeGenerator::generateMemberExpression(MemberExpression* node) {
     std::string object = generateExpression(node->object.get());
     std::string property = node->property;
     
+    // Ensure self is translated to this
+    if (object == "self") {
+        object = "this";
+    }
+    
     // Handle special Python-to-JS method translations
     if (property == "__len__") {
         return object + ".length";
@@ -698,27 +772,18 @@ std::string JSCodeGenerator::generateFStringLiteral(FStringLiteral* node) {
     // Process each part of the f-string
     for (const auto& part : node->getParts()) {
         if (part.isExpression) {
-            // Handle self → this conversion in various expression contexts
-            std::string exprStr;
+            // Always translate 'self' to 'this' in all contexts
+            std::string exprStr = generateExpression(part.expression.get());
             
-            if (auto memberExpr = dynamic_cast<MemberExpression*>(part.expression.get())) {
-                if (auto objIdent = dynamic_cast<Identifier*>(memberExpr->object.get())) {
-                    if (objIdent->name == "self") {
-                        exprStr = "this." + memberExpr->property;
-                    } else {
-                        exprStr = generateExpression(part.expression.get());
-                    }
-                } else {
-                    exprStr = generateExpression(part.expression.get());
-                }
-            } else if (auto identExpr = dynamic_cast<Identifier*>(part.expression.get())) {
-                if (identExpr->name == "self") {
-                    exprStr = "this";
-                } else {
-                    exprStr = generateExpression(part.expression.get());
-                }
-            } else {
-                exprStr = generateExpression(part.expression.get());
+            // Replace any remaining instances of 'self' with 'this'
+            size_t pos = 0;
+            while ((pos = exprStr.find("self.", pos)) != std::string::npos) {
+                exprStr.replace(pos, 5, "this.");
+                pos += 5;
+            }
+            
+            if (exprStr == "self") {
+                exprStr = "this";
             }
             
             result += "${" + exprStr + "}";

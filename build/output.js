@@ -6,17 +6,17 @@ const z = (x + (y * 2));
 if ((x > 5)) {
   console.log("x is greater than 5");
 } else if ((x === 5)) {
-  console.log("x equalsssssssssssssssssssssssss 5");
+  console.log("x equals 5");
 } else {
-  console.log("x is lesssssssssssssssssssssssssssssss than 5");
+  console.log("x is less than 5");
 }
 for (let i of Array.from({length: 5}, (_, i) => i)) {
-  console.log(`Looooooooooooooooooooooooooooooooooooooop iteration ${i}`);
+  console.log(`Looop iteration ${i}`);
 }
-const counter = 0;
+let counter = 0;
 while ((counter < 3)) {
   console.log(`While loop: ${counter}`);
-  const counter = (counter + 1);
+  counter = (counter + 1);
 }
 function greet(name, greeting = "Hello") {
   return `${greeting}, ${name}!`;
@@ -36,26 +36,23 @@ class Animal {
   }
 
   speak() {
-    console.log(`${self.name} makes a sound like a human`);
+    console.log(`${this.name} makes a sound like a human`);
   }
 
 }
 
 class Dog extends Animal {
   speak() {
-    console.log(`${self.name} barks like a human`);
+    console.log(`${this.name} barks like a human`);
   }
 
 }
 
-const fido = new Dog("Fido is a dog");
+let fido = new Dog("Fido is a dog");
 fido.speak();
 try {
   const result = (10 / 0);
 } catch (e) {
-  if (!(e instanceof Error)) {
-    throw e; // Re-throw if not the right type
-  }
   console.log("Cannot divide by zero");
 } finally {
   console.log("This always executes");

@@ -171,6 +171,8 @@ CMakeFiles/TheoryProject.dir/js_code_generator.cpp.obj: \
  C:/msys64/ucrt64/include/c++/14.2.0/bits/enable_special_members.h \
  C:/msys64/ucrt64/include/c++/14.2.0/bits/node_handle.h \
  C:/msys64/ucrt64/include/c++/14.2.0/bits/erase_if.h \
+ C:/msys64/ucrt64/include/c++/14.2.0/unordered_set \
+ C:/msys64/ucrt64/include/c++/14.2.0/bits/unordered_set.h \
  C:\Users\user\theoryproject\ast.h \
  C:\Users\user\theoryproject\ast_extended.h \
  C:/msys64/ucrt64/include/c++/14.2.0/iostream \
