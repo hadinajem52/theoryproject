@@ -6,13 +6,13 @@ z = x + y * 2
 if x > 5:
     print("x is greater than 5")
 elif x == 5:
-    print("x equals 5")
+    print("x equalsssssssssssssssssssssssss 5")
 else:
-    print("x is less than 5")
+    print("x is lesssssssssssssssssssssssssssssss than 5")
 
 # 3. Loops
 for i in range(5):
-    print(f"Loop iteration {i}")
+    print(f"Looooooooooooooooooooooooooooooooooooooop iteration {i}")
 
 counter = 0
 while counter < 3:
@@ -32,9 +32,9 @@ doubled = [num * 2 for num in numbers]
 print(doubled)
 
 person = {
-    "name": "Alice",
+    "name": "HAdi",
     "age": 30,
-    "languages": ["Python", "JavaScript"]
+    "languages": ["Python", "JavaScript", "C++"]
 }
 print(f"Person: {person['name']}, Age: {person['age']}")
 
@@ -44,13 +44,13 @@ class Animal:
         self.name = name
     
     def speak(self):
-        print(f"{self.name} makes a sound")
+        print(f"{self.name} makes a sound like a human")
 
 class Dog(Animal):
     def speak(self):
-        print(f"{self.name} barks")
+        print(f"{self.name} barks like a human")
 
-fido = Dog("Fido")
+fido = Dog("Fido is a dog")
 fido.speak()
 
 # 7. Exception handling
