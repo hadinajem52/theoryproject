@@ -21,7 +21,8 @@ const std::unordered_map<std::string, Token::Type> Token::keywordMap = {
     {"False", KEYWORD_FALSE},
     {"and", KEYWORD_AND},
     {"or", KEYWORD_OR},
-    {"not", KEYWORD_NOT}
+    {"not", KEYWORD_NOT},
+    {"lambda", KEYWORD_LAMBDA}  // Add lambda keyword mapping
 };
 
 Token::Type Token::getKeywordType(const std::string& keyword) {
@@ -55,6 +56,7 @@ std::string Token::typeToString(Type type) {
         case KEYWORD_AND: return "KEYWORD_AND";
         case KEYWORD_OR: return "KEYWORD_OR";
         case KEYWORD_NOT: return "KEYWORD_NOT";
+        case KEYWORD_LAMBDA: return "KEYWORD_LAMBDA";  // Add case for KEYWORD_LAMBDA
         
         // Identifier
         case IDENTIFIER: return "IDENTIFIER";

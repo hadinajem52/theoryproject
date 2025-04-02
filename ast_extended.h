@@ -191,6 +191,33 @@ public:
     std::unique_ptr<Expression> index;
 };
 
+// Slice access (array[start:end:step])
+class SliceExpression : public Expression {
+public:
+    SliceExpression(std::unique_ptr<Expression> object, 
+                   std::unique_ptr<Expression> start,
+                   std::unique_ptr<Expression> end,
+                   std::unique_ptr<Expression> step = nullptr)
+        : object(std::move(object)), start(std::move(start)), 
+          end(std::move(end)), step(std::move(step)) {}
+        
+    std::string toString() const override;
+    
+    std::unique_ptr<Expression> clone() const override {
+        return std::make_unique<SliceExpression>(
+            object->clone(),
+            start ? start->clone() : nullptr,
+            end ? end->clone() : nullptr,
+            step ? step->clone() : nullptr
+        );
+    }
+    
+    std::unique_ptr<Expression> object;
+    std::unique_ptr<Expression> start; // May be nullptr (e.g., [:end])
+    std::unique_ptr<Expression> end;   // May be nullptr (e.g., [start:])
+    std::unique_ptr<Expression> step;  // May be nullptr (e.g., [start:end])
+};
+
 // List literal [1, 2, 3]
 class ListExpression : public Expression {
 public:
@@ -365,4 +392,32 @@ public:
     std::unique_ptr<Block> tryBlock;
     std::vector<CatchBlock> catchBlocks;
     std::unique_ptr<Block> finallyBlock;
+};
+
+// Lambda expression (lambda x: x * 2)
+class LambdaExpression : public Expression {
+public:
+    struct Parameter {
+        std::string name;
+        std::unique_ptr<Expression> defaultValue; // Optional
+    };
+    
+    LambdaExpression(std::vector<Parameter> parameters, std::unique_ptr<Expression> body)
+        : parameters(std::move(parameters)), body(std::move(body)) {}
+        
+    std::string toString() const override;
+    
+    std::unique_ptr<Expression> clone() const override {
+        std::vector<Parameter> clonedParams;
+        for (const auto& param : parameters) {
+            Parameter clonedParam;
+            clonedParam.name = param.name;
+            clonedParam.defaultValue = param.defaultValue ? param.defaultValue->clone() : nullptr;
+            clonedParams.push_back(std::move(clonedParam));
+        }
+        return std::make_unique<LambdaExpression>(std::move(clonedParams), body->clone());
+    }
+    
+    std::vector<Parameter> parameters;
+    std::unique_ptr<Expression> body;
 };

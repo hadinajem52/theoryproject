@@ -127,6 +127,28 @@ std::string SubscriptExpression::toString() const {
     return "SubscriptExpression(" + object->toString() + "[" + index->toString() + "])";
 }
 
+std::string SliceExpression::toString() const {
+    std::stringstream ss;
+    ss << "SliceExpression(" << object->toString() << "[";
+    
+    if (start) {
+        ss << start->toString();
+    }
+    
+    ss << ":";
+    
+    if (end) {
+        ss << end->toString();
+    }
+    
+    if (step) {
+        ss << ":" << step->toString();
+    }
+    
+    ss << "])";
+    return ss.str();
+}
+
 std::string ListExpression::toString() const {
     std::stringstream ss;
     ss << "ListExpression([";
@@ -273,4 +295,31 @@ std::string FStringLiteral::extractExpressionText(const std::string& content, si
     
     // Extract the expression text (excluding the closing '}')
     return content.substr(start, (pos - start) - 1);
+}
+
+std::string LambdaExpression::toString() const {
+    std::stringstream ss;
+    ss << "LambdaExpression(";
+    
+    // Parameters
+    ss << "[";
+    bool first = true;
+    for (const auto& param : parameters) {
+        if (!first) {
+            ss << ", ";
+        }
+        first = false;
+        
+        ss << param.name;
+        if (param.defaultValue) {
+            ss << "=" << param.defaultValue->toString();
+        }
+    }
+    ss << "], ";
+    
+    // Body
+    ss << body->toString();
+    
+    ss << ")";
+    return ss.str();
 }

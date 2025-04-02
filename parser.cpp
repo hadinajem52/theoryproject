@@ -500,6 +500,30 @@ std::unique_ptr<Statement> Parser::parseExpressionStatement() {
         return std::make_unique<AssignmentStatement>(std::move(target), std::move(value));
     }
     
+    // Handle docstrings (triple-quoted strings which appear as consecutive string literals)
+    // Check if we just parsed a string literal and the next token is also a string literal
+    if (auto literal = dynamic_cast<Literal*>(expr.get())) {
+        if (literal->type == Literal::STRING && check(Token::LITERAL_STRING)) {
+            // This is likely a triple-quoted string (docstring)
+            std::string docstringContent = literal->value;
+            
+            // Consume the content of the triple quoted string
+            advance();
+            Token contentToken = tokens[current - 1];
+            docstringContent += contentToken.value;
+            
+            // If there's a third string token (closing triple quotes), consume it
+            if (check(Token::LITERAL_STRING)) {
+                advance();
+                Token closingToken = tokens[current - 1];
+                docstringContent += closingToken.value;
+            }
+            
+            // Update the literal with the full docstring content
+            literal->value = docstringContent;
+        }
+    }
+    
     // Regular expression statement
     // Check for EOF or DEDENT or consume newline
     if (!check(Token::END_OF_FILE) && !check(Token::DEDENT)) {
@@ -613,11 +637,11 @@ std::unique_ptr<Expression> Parser::parseTerm() {
 }
 
 std::unique_ptr<Expression> Parser::parseFactor() {
-    auto expr = parseUnary();
+    auto expr = parsePower();
     
     while (match({Token::OP_MULTIPLY, Token::OP_DIVIDE, Token::OP_MODULO})) {
         Token::Type op = tokens[current - 1].type;
-        auto right = parseUnary();
+        auto right = parsePower();
         
         BinaryExpression::Operator bop;
         switch (op) {
@@ -653,7 +677,22 @@ std::unique_ptr<Expression> Parser::parseUnary() {
         return std::make_unique<UnaryExpression>(uop, std::move(right));
     }
     
-    return parseCall();
+    return parsePower();
+}
+
+std::unique_ptr<Expression> Parser::parsePower() {
+    auto expr = parseCall();
+    
+    while (match(Token::OP_POWER)) {
+        auto right = parseUnary();
+        expr = std::make_unique<BinaryExpression>(
+            BinaryExpression::POWER,
+            std::move(expr),
+            std::move(right)
+        );
+    }
+    
+    return expr;
 }
 
 std::unique_ptr<Expression> Parser::parseCall() {
@@ -680,10 +719,45 @@ std::unique_ptr<Expression> Parser::parseCall() {
             Token name = consume(Token::IDENTIFIER, "Expected property name after '.'");
             expr = std::make_unique<MemberExpression>(std::move(expr), name.value);
         } else if (match(Token::SEP_LBRACKET)) {
-            // Subscript access (array[index])
-            auto index = parseExpression();
-            consume(Token::SEP_RBRACKET, "Expected ']' after index");
-            expr = std::make_unique<SubscriptExpression>(std::move(expr), std::move(index));
+            // Check if this is a slice notation or regular subscript
+            
+            // Try to parse the start expression (may be omitted in slices like [:end])
+            std::unique_ptr<Expression> startExpr = nullptr;
+            if (!check(Token::SEP_COLON)) {
+                startExpr = parseExpression();
+            }
+            
+            // If we find a colon, this is slice notation
+            if (match(Token::SEP_COLON)) {
+                // This is a slice notation [start:end:step]
+                std::unique_ptr<Expression> endExpr = nullptr;
+                std::unique_ptr<Expression> stepExpr = nullptr;
+                
+                // Parse the end expression (may be omitted in slices like [start:])
+                if (!check(Token::SEP_COLON) && !check(Token::SEP_RBRACKET)) {
+                    endExpr = parseExpression();
+                }
+                
+                // Check for step part [start:end:step]
+                if (match(Token::SEP_COLON)) {
+                    // Parse the step expression (may be omitted in slices like [start:end:])
+                    if (!check(Token::SEP_RBRACKET)) {
+                        stepExpr = parseExpression();
+                    }
+                }
+                
+                consume(Token::SEP_RBRACKET, "Expected ']' after slice");
+                expr = std::make_unique<SliceExpression>(
+                    std::move(expr), 
+                    std::move(startExpr), 
+                    std::move(endExpr), 
+                    std::move(stepExpr)
+                );
+            } else {
+                // Regular subscript access (array[index])
+                consume(Token::SEP_RBRACKET, "Expected ']' after index");
+                expr = std::make_unique<SubscriptExpression>(std::move(expr), std::move(startExpr));
+            }
         } else {
             break;
         }
@@ -729,6 +803,30 @@ std::unique_ptr<Expression> Parser::parsePrimary() {
             Literal::NONE, 
             "null"
         );
+    } else if (match(Token::KEYWORD_LAMBDA)) {
+        // Parse lambda expression
+        std::vector<LambdaExpression::Parameter> parameters;
+        
+        // Parse parameters (if any)
+        if (!check(Token::SEP_COLON)) {
+            do {
+                Token paramName = consume(Token::IDENTIFIER, "Expected parameter name");
+                
+                // Check for default value
+                std::unique_ptr<Expression> defaultValue = nullptr;
+                if (match(Token::OP_ASSIGN)) {
+                    defaultValue = parseExpression();
+                }
+                
+                parameters.push_back({paramName.value, std::move(defaultValue)});
+            } while (match(Token::SEP_COMMA) && !check(Token::SEP_COLON));
+        }
+        
+        // Consume the colon and parse the body expression
+        consume(Token::SEP_COLON, "Expected ':' after lambda parameters");
+        auto body = parseExpression();
+        
+        return std::make_unique<LambdaExpression>(std::move(parameters), std::move(body));
     } else if (match(Token::IDENTIFIER)) {
         return std::make_unique<Identifier>(tokens[current - 1].value);
     } else if (match(Token::SEP_LPAREN)) {

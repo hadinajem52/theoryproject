@@ -218,9 +218,20 @@ Token Lexer::handleString() {
     char quoteType = advance(); // Either ' or "
     std::string str;
     
+    // Check for triple quotes
+    bool isTripleQuoted = false;
+    if (peek() == quoteType && peek(1) == quoteType) {
+        isTripleQuoted = true;
+        advance(); // consume second quote
+        advance(); // consume third quote
+    }
+    
     // Consume the string content
-    while (peek() != quoteType && peek() != '\0' && peek() != '\n') {
-        if (peek() == '\\' && pos + 1 < sourceCode.length()) {
+    while ((peek() != quoteType || 
+           (isTripleQuoted && (peek(1) != quoteType || peek(2) != quoteType))) && 
+           peek() != '\0') {
+        
+        if (peek() == '\\') {
             advance(); // Skip the backslash
             switch (peek()) {
                 case 'n': str += '\n'; break;
@@ -230,6 +241,15 @@ Token Lexer::handleString() {
                 case '\"': str += '\"'; break;
                 case '\\': str += '\\'; break;
                 default: str += peek(); break;
+            }
+        } else if (peek() == '\n') {
+            // Allow actual newlines in triple-quoted strings
+            if (isTripleQuoted) {
+                str += '\n';
+                line++;
+                column = 1;
+            } else {
+                return Token(Token::ERROR, "Unterminated string", startLine, startColumn);
             }
         } else {
             str += peek();
@@ -244,6 +264,15 @@ Token Lexer::handleString() {
     
     advance(); // Consume the closing quote
     
+    // If triple-quoted, consume the other two closing quotes
+    if (isTripleQuoted) {
+        if (peek() != quoteType || peek(1) != quoteType) {
+            return Token(Token::ERROR, "Unterminated triple-quoted string", startLine, startColumn);
+        }
+        advance(); // second quote
+        advance(); // third quote
+    }
+    
     return Token(Token::LITERAL_STRING, str, startLine, startColumn);
 }
 
@@ -257,9 +286,20 @@ Token Lexer::handleFString() {
     char quoteType = advance(); // Either ' or "
     std::string str;
     
+    // Check for triple quotes
+    bool isTripleQuoted = false;
+    if (peek() == quoteType && peek(1) == quoteType) {
+        isTripleQuoted = true;
+        advance(); // consume second quote
+        advance(); // consume third quote
+    }
+    
     // Consume the string content
-    while (peek() != quoteType && peek() != '\0' && peek() != '\n') {
-        if (peek() == '\\' && pos + 1 < sourceCode.length()) {
+    while ((peek() != quoteType || 
+           (isTripleQuoted && (peek(1) != quoteType || peek(2) != quoteType))) && 
+           peek() != '\0') {
+        
+        if (peek() == '\\') {
             advance(); // Skip the backslash
             switch (peek()) {
                 case 'n': str += '\n'; break;
@@ -269,6 +309,15 @@ Token Lexer::handleFString() {
                 case '\"': str += '\"'; break;
                 case '\\': str += '\\'; break;
                 default: str += peek(); break;
+            }
+        } else if (peek() == '\n') {
+            // Allow actual newlines in triple-quoted strings
+            if (isTripleQuoted) {
+                str += '\n';
+                line++;
+                column = 1;
+            } else {
+                return Token(Token::ERROR, "Unterminated f-string", startLine, startColumn);
             }
         } else {
             str += peek();
@@ -282,6 +331,15 @@ Token Lexer::handleFString() {
     }
     
     advance(); // Consume the closing quote
+    
+    // If triple-quoted, consume the other two closing quotes
+    if (isTripleQuoted) {
+        if (peek() != quoteType || peek(1) != quoteType) {
+            return Token(Token::ERROR, "Unterminated triple-quoted f-string", startLine, startColumn);
+        }
+        advance(); // second quote
+        advance(); // third quote
+    }
     
     return Token(Token::LITERAL_FSTRING, str, startLine, startColumn);
 }

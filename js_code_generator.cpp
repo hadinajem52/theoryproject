@@ -572,6 +572,8 @@ std::string JSCodeGenerator::generateExpression(Expression* node) {
         return generateMemberExpression(memberExprNode);
     } else if (auto subscriptExprNode = dynamic_cast<SubscriptExpression*>(node)) {
         return generateSubscriptExpression(subscriptExprNode);
+    } else if (auto sliceExprNode = dynamic_cast<SliceExpression*>(node)) {
+        return generateSliceExpression(sliceExprNode);
     } else if (auto listExprNode = dynamic_cast<ListExpression*>(node)) {
         return generateListExpression(listExprNode);
     } else if (auto listCompNode = dynamic_cast<ListComprehension*>(node)) {
@@ -580,6 +582,8 @@ std::string JSCodeGenerator::generateExpression(Expression* node) {
         return generateDictExpression(dictExprNode);
     } else if (auto fstringNode = dynamic_cast<FStringLiteral*>(node)) {
         return generateFStringLiteral(fstringNode);
+    } else if (auto lambdaExprNode = dynamic_cast<LambdaExpression*>(node)) {
+        return generateLambdaExpression(lambdaExprNode);
     }
     
     return "/* Unknown expression */";
@@ -637,6 +641,30 @@ std::string JSCodeGenerator::generateUnaryExpression(UnaryExpression* node) {
 std::string JSCodeGenerator::generateCallExpression(CallExpression* node) {
     std::string callee = generateExpression(node->callee.get());
     
+    // If it's a method call, translate the method name
+    if (auto memberExpr = dynamic_cast<MemberExpression*>(node->callee.get())) {
+        // This is a method call on an object
+        std::string object = generateExpression(memberExpr->object.get());
+        std::string method = translatePythonMethodName(memberExpr->property);
+        
+        // Generate arguments
+        std::string args;
+        for (size_t i = 0; i < node->arguments.size(); i++) {
+            if (i > 0) args += ", ";
+            args += generateExpression(node->arguments[i].get());
+        }
+        
+        // Special handling for certain methods
+        if (memberExpr->property == "join") {
+            // Python: delimiter.join(items) -> JS: items.join(delimiter)
+            if (node->arguments.size() == 1) {
+                return generateExpression(node->arguments[0].get()) + ".join(" + object + ")";
+            }
+        }
+        
+        return object + "." + method + "(" + args + ")";
+    }
+    
     // Check if this appears to be a class constructor call
     bool isConstructorCall = false;
     if (auto identCallee = dynamic_cast<Identifier*>(node->callee.get())) {
@@ -684,7 +712,7 @@ std::string JSCodeGenerator::generateCallExpression(CallExpression* node) {
 
 std::string JSCodeGenerator::generateMemberExpression(MemberExpression* node) {
     std::string object = generateExpression(node->object.get());
-    std::string property = node->property;
+    std::string property = translatePythonMethodName(node->property);
     
     // Ensure self is translated to this
     if (object == "self") {
@@ -692,9 +720,9 @@ std::string JSCodeGenerator::generateMemberExpression(MemberExpression* node) {
     }
     
     // Handle special Python-to-JS method translations
-    if (property == "__len__") {
+    if (node->property == "__len__") {
         return object + ".length";
-    } else if (property == "__str__") {
+    } else if (node->property == "__str__") {
         return object + ".toString";
     }
     
@@ -707,6 +735,27 @@ std::string JSCodeGenerator::generateSubscriptExpression(SubscriptExpression* no
     std::string index = generateExpression(node->index.get());
     
     return object + "[" + index + "]";
+}
+
+std::string JSCodeGenerator::generateSliceExpression(SliceExpression* node) {
+    std::string object = generateExpression(node->object.get());
+    
+    // Basic slice: array.slice(start, end)
+    if (!node->step) {
+        std::string start = node->start ? generateExpression(node->start.get()) : "0";
+        std::string end = node->end ? generateExpression(node->end.get()) : "";
+        
+        return object + ".slice(" + start + (node->end ? ", " + end : "") + ")";
+    } else {
+        // Slice with step requires more complex logic
+        std::string start = node->start ? generateExpression(node->start.get()) : "0";
+        std::string end = node->end ? generateExpression(node->end.get()) : object + ".length";
+        std::string step = generateExpression(node->step.get());
+        
+        // Use Array.from to handle step in a more idiomatic JavaScript way
+        return "Array.from({length: Math.ceil((" + end + " - " + start + ") / " + step + ")})" +
+               ".map((_, i) => " + object + "[" + start + " + (i * " + step + ")])";
+    }
 }
 
 std::string JSCodeGenerator::generateListExpression(ListExpression* node) {
@@ -812,6 +861,33 @@ std::string JSCodeGenerator::generateFStringLiteral(FStringLiteral* node) {
     return result;
 }
 
+std::string JSCodeGenerator::generateLambdaExpression(LambdaExpression* node) {
+    // Collect parameters
+    std::string paramList;
+    bool isFirst = true;
+    
+    for (const auto& param : node->parameters) {
+        if (!isFirst) {
+            paramList += ", ";
+        }
+        
+        paramList += param.name;
+        
+        if (param.defaultValue) {
+            // Handle default parameters
+            paramList += " = " + generateExpression(param.defaultValue.get());
+        }
+        
+        isFirst = false;
+    }
+    
+    // Generate lambda body
+    std::string body = generateExpression(node->body.get());
+    
+    // Construct a JavaScript arrow function
+    return "(" + paramList + ") => " + body;
+}
+
 std::string JSCodeGenerator::getFunctionParameterList(
     const std::vector<FunctionDeclaration::Parameter>& params,
     bool skipSelf) {
@@ -864,6 +940,53 @@ std::string JSCodeGenerator::translatePythonBuiltIn(const std::string& name) {
     }
     
     return name;
+}
+
+std::string JSCodeGenerator::translatePythonMethodName(const std::string& methodName) {
+    static const std::unordered_map<std::string, std::string> methodMap = {
+        // List methods
+        {"append", "push"},
+        {"extend", "concat"},  // Not perfect but works for simple cases
+        {"pop", "pop"},
+        {"insert", "splice"},  // Needs special handling
+        {"remove", "splice"},  // Needs special handling
+        {"clear", "splice"},   // Needs special handling
+        {"index", "indexOf"},
+        {"count", "filter"},   // Needs special handling
+        {"sort", "sort"},
+        {"reverse", "reverse"},
+        {"copy", "slice"},     // array.slice() creates a copy
+        
+        // String methods
+        {"startswith", "startsWith"},
+        {"endswith", "endsWith"},
+        {"replace", "replace"},
+        {"upper", "toUpperCase"},
+        {"lower", "toLowerCase"},
+        {"strip", "trim"},
+        {"lstrip", "trimStart"},
+        {"rstrip", "trimEnd"},
+        {"split", "split"},
+        
+        // Dictionary methods
+        {"keys", "keys"},       // In JS: Object.keys(obj)
+        {"values", "values"},   // In JS: Object.values(obj)
+        {"items", "entries"},   // In JS: Object.entries(obj)
+        {"get", "get"},         // Needs special handling
+        
+        // Special Python methods
+        {"__str__", "toString"},
+        {"__repr__", "toString"},
+        {"__len__", "length"}   // Special handling in generateMemberExpression
+    };
+    
+    auto it = methodMap.find(methodName);
+    if (it != methodMap.end()) {
+        return it->second;
+    }
+    
+    // Return original if no translation found
+    return methodName;
 }
 
 bool JSCodeGenerator::isSpecialMethod(const std::string& name) {

@@ -82,10 +82,12 @@ private:
     std::string generateCallExpression(CallExpression* node);
     std::string generateMemberExpression(MemberExpression* node);
     std::string generateSubscriptExpression(SubscriptExpression* node);
+    std::string generateSliceExpression(SliceExpression* node);  // Add this method
     std::string generateListExpression(ListExpression* node);
-    std::string generateListComprehension(ListComprehension* node);  // New method
+    std::string generateListComprehension(ListComprehension* node);
     std::string generateDictExpression(DictExpression* node);
     std::string generateFStringLiteral(FStringLiteral* node);
+    std::string generateLambdaExpression(LambdaExpression* node);  // Add this method
     
     // Helper methods
     std::string getFunctionParameterList(
@@ -93,6 +95,7 @@ private:
         bool skipSelf = false);
     std::string translatePythonBuiltIn(const std::string& name);
     std::string translatePythonExceptionType(const std::string& pythonType);
+    std::string translatePythonMethodName(const std::string& methodName);  // Add this method
     bool isSpecialMethod(const std::string& name);
     bool isLikelyConstructor(const std::string& name) const;
     std::string getJavaScriptOperator(BinaryExpression::Operator op);
