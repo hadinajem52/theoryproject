@@ -69,8 +69,7 @@ function main() {
     }
     time.sleep(1);
     if (((creature.experience >= 20) && (creature.experience < 21))) {
-      console.log(`
-✨ Amazing! ${creature.name} is evolving! ✨`);
+      console.log(`Amazing! ${creature.name} is evolving! ✨`);
       time.sleep(2);
       creature.name = ("Elder " + creature.name);
       console.log(`${creature.name} has reached a new form!`);

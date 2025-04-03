@@ -385,10 +385,18 @@ std::unique_ptr<Statement> Parser::parseWhileStatement() {
 std::unique_ptr<Statement> Parser::parseForStatement() {
     currentState = {FOR_STATEMENT, "FOR_STATEMENT"};
     
-    // For loop variable
-    auto variable = parseExpression();
+    // Start with an empty list of target expressions
+    std::vector<std::unique_ptr<Expression>> targets;
     
-    // Check if variable is an identifier or a valid expression
+    // Parse the first target expression
+    targets.push_back(parseExpression());
+    
+    // If we find a comma, continue parsing target expressions
+    while (match(Token::SEP_COMMA)) {
+        targets.push_back(parseExpression());
+    }
+    
+    // Expect 'in' keyword
     consume(Token::KEYWORD_IN, "Expected 'in' after for loop variable");
     
     // For loop iterable
@@ -398,7 +406,15 @@ std::unique_ptr<Statement> Parser::parseForStatement() {
     consume(Token::NEWLINE, "Expected newline after for statement");
     auto body = parseBlock();
     
-    return std::make_unique<ForStatement>(std::move(variable), std::move(iterable), std::move(body));
+    // If we have multiple targets, create a list expression to represent the tuple
+    std::unique_ptr<Expression> target;
+    if (targets.size() == 1) {
+        target = std::move(targets[0]);
+    } else {
+        target = std::make_unique<ListExpression>(std::move(targets));
+    }
+    
+    return std::make_unique<ForStatement>(std::move(target), std::move(iterable), std::move(body));
 }
 
 std::unique_ptr<Statement> Parser::parseReturnStatement() {
@@ -406,7 +422,23 @@ std::unique_ptr<Statement> Parser::parseReturnStatement() {
     
     // Check if there's a return value
     if (!check(Token::NEWLINE)) {
+        // Parse the first expression
         value = parseExpression();
+        
+        // If we find commas, we're returning multiple values (a tuple)
+        if (match(Token::SEP_COMMA)) {
+            // Start a vector with the first expression we already parsed
+            std::vector<std::unique_ptr<Expression>> elements;
+            elements.push_back(std::move(value));
+            
+            // Parse remaining expressions
+            do {
+                elements.push_back(parseExpression());
+            } while (match(Token::SEP_COMMA));
+            
+            // Create a tuple expression from all the elements
+            value = std::make_unique<ListExpression>(std::move(elements));
+        }
     }
     
     consume(Token::NEWLINE, "Expected newline after return statement");
@@ -415,6 +447,13 @@ std::unique_ptr<Statement> Parser::parseReturnStatement() {
 }
 
 std::unique_ptr<Block> Parser::parseBlock() {
+    // Skip any comments or blank lines before the INDENT
+    while (current < tokens.size() && 
+           (tokens[current].type == Token::COMMENT || 
+            tokens[current].type == Token::NEWLINE)) {
+        advance();
+    }
+    
     // Expect an INDENT token at the start of a block
     consume(Token::INDENT, "Expected indented block");
     
@@ -637,11 +676,11 @@ std::unique_ptr<Expression> Parser::parseTerm() {
 }
 
 std::unique_ptr<Expression> Parser::parseFactor() {
-    auto expr = parsePower();
+    auto expr = parseUnary();
     
     while (match({Token::OP_MULTIPLY, Token::OP_DIVIDE, Token::OP_MODULO})) {
         Token::Type op = tokens[current - 1].type;
-        auto right = parsePower();
+        auto right = parseUnary();
         
         BinaryExpression::Operator bop;
         switch (op) {
@@ -830,8 +869,33 @@ std::unique_ptr<Expression> Parser::parsePrimary() {
     } else if (match(Token::IDENTIFIER)) {
         return std::make_unique<Identifier>(tokens[current - 1].value);
     } else if (match(Token::SEP_LPAREN)) {
-        // Grouping
+        // Check for empty tuple
+        if (match(Token::SEP_RPAREN)) {
+            // Empty tuple
+            return std::make_unique<ListExpression>(std::vector<std::unique_ptr<Expression>>());
+        }
+        
+        // Parse the first expression
         auto expr = parseExpression();
+        
+        // If we find a comma, this is a tuple, not just grouping
+        if (match(Token::SEP_COMMA)) {
+            // Start a vector with the first expression we already parsed
+            std::vector<std::unique_ptr<Expression>> elements;
+            elements.push_back(std::move(expr));
+            
+            // Parse remaining expressions
+            if (!check(Token::SEP_RPAREN)) {  // Allow trailing comma
+                do {
+                    elements.push_back(parseExpression());
+                } while (match(Token::SEP_COMMA) && !check(Token::SEP_RPAREN));
+            }
+            
+            consume(Token::SEP_RPAREN, "Expected ')' after tuple elements");
+            return std::make_unique<ListExpression>(std::move(elements));
+        }
+        
+        // Regular grouping
         consume(Token::SEP_RPAREN, "Expected ')' after expression");
         return expr;
     } else if (match(Token::SEP_LBRACKET)) {
