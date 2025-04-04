@@ -32,12 +32,26 @@ public:
         std::string condition;
     };
     
+    // Trace recording for visualization
+    struct TraceStep {
+        State from;
+        State to;
+        std::string input;
+        
+        TraceStep(const State& f, const State& t, const std::string& i)
+            : from(f), to(t), input(i) {}
+    };
+    
     // Get automaton structure for visualization
     std::vector<State> getStates() const;
     std::vector<Transition> getTransitions() const;
+    std::vector<TraceStep> getExecutionTrace() const;
     
     // Get current state for visualization
     State getCurrentState() const { return currentState; }
+    
+    // Reset trace for a new analysis
+    void resetTrace();
     
 private:
     std::string sourceCode;
@@ -46,6 +60,12 @@ private:
     int column;
     std::stack<int> indentStack;
     State currentState;
+    
+    // Execution trace for visualization
+    std::vector<TraceStep> executionTrace;
+    
+    // Helper method to record a transition
+    void recordTransition(const State& from, const State& to, const std::string& input);
     
     // Helper methods for tokenization
     char peek(int offset = 0) const;

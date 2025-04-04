@@ -37,6 +37,16 @@ public:
         std::string condition;
     };
     
+    // Trace recording for visualization
+    struct TraceStep {
+        State from;
+        State to;
+        std::string input;
+        
+        TraceStep(const State& f, const State& t, const std::string& i)
+            : from(f), to(t), input(i) {}
+    };
+    
     Parser(const std::vector<Token>& tokens);
     
     // Main parsing method
@@ -45,7 +55,11 @@ public:
     // Get parsing states and transitions for visualization
     std::vector<State> getStates() const;
     std::vector<Transition> getTransitions() const;
+    std::vector<TraceStep> getExecutionTrace() const;
     State getCurrentState() const;
+    
+    // Reset trace for a new analysis
+    void resetTrace();
     
     // Error checking methods
     bool hasParseError() const;
@@ -64,8 +78,14 @@ private:
     std::vector<State> states;
     std::vector<Transition> transitions;
     
+    // Execution trace for visualization
+    std::vector<TraceStep> executionTrace;
+    
     // Initialize the automaton states and transitions
     void initAutomaton();
+    
+    // Helper method to record a transition
+    void recordTransition(const State& from, const State& to, const std::string& input);
     
     // Helper methods
     Token peek() const;

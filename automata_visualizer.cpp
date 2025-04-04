@@ -2,6 +2,7 @@
 #include <cmath>
 #include <algorithm>
 #include <iostream>
+#include <fstream>
 
 // Constants for visualization
 const float NODE_RADIUS = 30.0f;
@@ -17,7 +18,7 @@ const sf::Color ERROR_EDGE_COLOR(255, 100, 100); // Red for error transitions
 const sf::Color EPSILON_EDGE_COLOR(100, 100, 255); // Blue for epsilon transitions
 const sf::Color BACKGROUND_COLOR(50, 50, 50);
 
-AutomataVisualizer::AutomataVisualizer() : currentMode(LEXER), currentLayout(CIRCULAR), selectedNode(nullptr) {
+AutomataVisualizer::AutomataVisualizer() : currentMode(LEXER), currentLayout(CIRCULAR), selectedNode(nullptr), isAnimating(false), animationSpeed(1.0f), currentAnimationStep(0), isEditingCode(false) {
 }
 
 AutomataVisualizer::~AutomataVisualizer() {
@@ -43,6 +44,118 @@ void AutomataVisualizer::initialize() {
             }
         }
     }
+    
+    // Initialize code input UI
+    codeInputBox.setSize(sf::Vector2f(WINDOW_WIDTH - 40, 150));
+    codeInputBox.setPosition(20, WINDOW_HEIGHT - 170);
+    codeInputBox.setFillColor(sf::Color(30, 30, 30));
+    codeInputBox.setOutlineColor(sf::Color(100, 100, 100));
+    codeInputBox.setOutlineThickness(2);
+    
+    codeInputText.setFont(font);
+    codeInputText.setCharacterSize(16);
+    codeInputText.setFillColor(TEXT_COLOR);
+    codeInputText.setPosition(30, WINDOW_HEIGHT - 160);
+    
+    codeInputPrompt.setFont(font);
+    codeInputPrompt.setString("Click here to enter Python code");
+    codeInputPrompt.setCharacterSize(16);
+    codeInputPrompt.setFillColor(sf::Color(150, 150, 150));
+    codeInputPrompt.setPosition(30, WINDOW_HEIGHT - 160);
+    
+    runButton.setSize(sf::Vector2f(100, 30));
+    runButton.setPosition(WINDOW_WIDTH - 120, WINDOW_HEIGHT - 50);
+    runButton.setFillColor(sf::Color(50, 100, 50));
+    
+    runButtonText.setFont(font);
+    runButtonText.setString("Run");
+    runButtonText.setCharacterSize(16);
+    runButtonText.setFillColor(TEXT_COLOR);
+    sf::FloatRect textBounds = runButtonText.getLocalBounds();
+    runButtonText.setPosition(
+        WINDOW_WIDTH - 120 + (100 - textBounds.width) / 2,
+        WINDOW_HEIGHT - 50 + (30 - textBounds.height) / 2 - 5
+    );
+    
+    // Initialize load example button
+    loadExampleButton.setSize(sf::Vector2f(200, 30));
+    loadExampleButton.setPosition(WINDOW_WIDTH - 320, WINDOW_HEIGHT - 50);
+    loadExampleButton.setFillColor(sf::Color(50, 50, 150));
+    
+    loadExampleText.setFont(font);
+    loadExampleText.setString("Load example.py");
+    loadExampleText.setCharacterSize(16);
+    loadExampleText.setFillColor(TEXT_COLOR);
+    sf::FloatRect exampleTextBounds = loadExampleText.getLocalBounds();
+    loadExampleText.setPosition(
+        WINDOW_WIDTH - 320 + (200 - exampleTextBounds.width) / 2,
+        WINDOW_HEIGHT - 50 + (30 - exampleTextBounds.height) / 2 - 5
+    );
+}
+
+std::string AutomataVisualizer::readFile(const std::string& filename) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file: " << filename << std::endl;
+        return "";
+    }
+    
+    std::string content((std::istreambuf_iterator<char>(file)),
+                         std::istreambuf_iterator<char>());
+    return content;
+}
+
+void AutomataVisualizer::loadAndProcessExampleFile() {
+    // Path to example.py - try both local and build directory
+    std::string filePath = "example.py";
+    std::string content = readFile(filePath);
+    
+    if (content.empty()) {
+        // Try the build directory
+        filePath = "build/example.py";
+        content = readFile(filePath);
+    }
+    
+    if (content.empty()) {
+        // Try the full path from the attachment
+        filePath = "c:\\Users\\user\\theoryproject\\build\\example.py";
+        content = readFile(filePath);
+    }
+    
+    if (content.empty()) {
+        std::cerr << "Failed to load example.py file" << std::endl;
+        return;
+    }
+    
+    // Update the input buffer to show the loaded code
+    inputBuffer = content;
+    codeInputText.setString(inputBuffer);
+    
+    // Process the code
+    processPythonCode(content);
+}
+
+void AutomataVisualizer::processPythonCode(const std::string& code) {
+    currentCode = code;
+    
+    // Process with lexer
+    Lexer lexer(code);
+    lexer.resetTrace();
+    auto tokens = lexer.tokenize();
+    lexerTrace = lexer.getExecutionTrace();
+    
+    // Display lexer automaton
+    visualizeLexer(lexer);
+    
+    // Process with parser
+    Parser parser(tokens);
+    parser.resetTrace();
+    parser.parse();
+    parserTrace = parser.getExecutionTrace();
+    
+    // Show animation
+    currentMode = LEXER;
+    startAnimation();
 }
 
 void AutomataVisualizer::visualizeLexer(const Lexer& lexer) {
@@ -322,7 +435,12 @@ void AutomataVisualizer::handleEvents() {
         }
         else if (event.type == sf::Event::KeyPressed) {
             if (event.key.code == sf::Keyboard::Escape) {
-                window.close();
+                if (isEditingCode) {
+                    // Exit code editing mode if Escape is pressed
+                    isEditingCode = false;
+                } else {
+                    window.close();
+                }
             }
             else if (event.key.code == sf::Keyboard::Space) {
                 switchMode();
@@ -330,18 +448,54 @@ void AutomataVisualizer::handleEvents() {
             else if (event.key.code == sf::Keyboard::L) {
                 switchLayout();
             }
+            else if (event.key.code == sf::Keyboard::A) {
+                // Start animation when 'A' key is pressed
+                startAnimation();
+            }
+            else if (event.key.code == sf::Keyboard::Add || event.key.code == sf::Keyboard::Equal) {
+                // Increase animation speed
+                animationSpeed = std::max(0.1f, animationSpeed - 0.1f);
+                std::cout << "Animation speed: " << 1.0f/animationSpeed << " transitions per second" << std::endl;
+            }
+            else if (event.key.code == sf::Keyboard::Subtract || event.key.code == sf::Keyboard::Dash) {
+                // Decrease animation speed
+                animationSpeed += 0.1f;
+                std::cout << "Animation speed: " << 1.0f/animationSpeed << " transitions per second" << std::endl;
+            }
+            else if (event.key.code == sf::Keyboard::E) {
+                // Load example when 'E' key is pressed
+                loadAndProcessExampleFile();
+            }
         }
         else if (event.type == sf::Event::MouseButtonPressed) {
             if (event.mouseButton.button == sf::Mouse::Left) {
                 sf::Vector2f mousePos(event.mouseButton.x, event.mouseButton.y);
-                auto& nodes = (currentMode == LEXER) ? lexerNodes : parserNodes;
-                for (auto& node : nodes) {
-                    sf::Vector2f nodePos = node.shape.getPosition();
-                    float dx = mousePos.x - nodePos.x;
-                    float dy = mousePos.y - nodePos.y;
-                    if (sqrt(dx*dx + dy*dy) < NODE_RADIUS) {
-                        selectedNode = &node;
-                        break;
+                
+                // Check if code input box was clicked
+                if (codeInputBox.getGlobalBounds().contains(mousePos)) {
+                    isEditingCode = true;
+                }
+                // Check if run button was clicked
+                else if (runButton.getGlobalBounds().contains(mousePos)) {
+                    processPythonCode(inputBuffer);
+                    isEditingCode = false;
+                }
+                // Check if load example button was clicked
+                else if (loadExampleButton.getGlobalBounds().contains(mousePos)) {
+                    loadAndProcessExampleFile();
+                }
+                // Check for node selection (existing code)
+                else {
+                    isEditingCode = false; // Click outside editor area
+                    auto& nodes = (currentMode == LEXER) ? lexerNodes : parserNodes;
+                    for (auto& node : nodes) {
+                        sf::Vector2f nodePos = node.shape.getPosition();
+                        float dx = mousePos.x - nodePos.x;
+                        float dy = mousePos.y - nodePos.y;
+                        if (sqrt(dx*dx + dy*dy) < NODE_RADIUS) {
+                            selectedNode = &node;
+                            break;
+                        }
                     }
                 }
             }
@@ -355,6 +509,34 @@ void AutomataVisualizer::handleEvents() {
                 selectedNode->label.setPosition(event.mouseMove.x, event.mouseMove.y);
                 updateEdges();
             }
+        }
+        
+        // Handle text input when editing code
+        if (isEditingCode) {
+            handleCodeInputEvents(event);
+        }
+    }
+}
+
+void AutomataVisualizer::handleCodeInputEvents(const sf::Event& event) {
+    if (event.type == sf::Event::TextEntered) {
+        // Handle text input
+        if (event.text.unicode < 128) {
+            if (event.text.unicode == 8) { // Backspace
+                if (!inputBuffer.empty()) {
+                    inputBuffer.pop_back();
+                }
+            }
+            else if (event.text.unicode == 13) { // Enter
+                inputBuffer += '\n';
+            }
+            else if (event.text.unicode == 9) { // Tab
+                inputBuffer += "    "; // Add 4 spaces for tab
+            }
+            else {
+                inputBuffer += static_cast<char>(event.text.unicode);
+            }
+            codeInputText.setString(inputBuffer);
         }
     }
 }
@@ -547,12 +729,14 @@ void AutomataVisualizer::drawAutomaton() {
     const auto& nodes = (currentMode == LEXER) ? lexerNodes : parserNodes;
     const auto& edges = (currentMode == LEXER) ? lexerEdges : parserEdges;
     
+    // Draw edges first so they appear below nodes
     for (const auto& edge : edges) {
         window.draw(edge.line);
         window.draw(edge.arrow);
         window.draw(edge.label);
     }
     
+    // Draw nodes
     for (const auto& node : nodes) {
         sf::CircleShape nodeShape = node.shape;
         if (node.isActive && node.isAccepting) {
@@ -568,6 +752,7 @@ void AutomataVisualizer::drawAutomaton() {
         }
         window.draw(nodeShape);
         
+        // Draw accepting state indicator (double circle)
         if (node.isAccepting) {
             sf::CircleShape outerCircle;
             outerCircle.setRadius(NODE_RADIUS - 4);
@@ -579,6 +764,7 @@ void AutomataVisualizer::drawAutomaton() {
             window.draw(outerCircle);
         }
         
+        // Draw initial state indicator (arrow pointing to node)
         if (node.isInitial) {
             sf::VertexArray line(sf::Lines, 2);
             sf::Vector2f nodePos = node.shape.getPosition();
@@ -606,6 +792,7 @@ void AutomataVisualizer::drawAutomaton() {
         window.draw(node.label);
     }
     
+    // Draw UI elements
     sf::Text modeText;
     modeText.setFont(font);
     modeText.setString((currentMode == LEXER) ? "Lexer Automaton (Space to switch)" : "Parser Automaton (Space to switch)");
@@ -623,12 +810,238 @@ void AutomataVisualizer::drawAutomaton() {
     layoutText.setPosition(20.0f, 50.0f);
     window.draw(layoutText);
     
+    // Add animation status indicator
+    if (isAnimating) {
+        sf::Text animText;
+        animText.setFont(font);
+        animText.setString("Animation Running (Step " + 
+                          std::to_string(currentAnimationStep) + "/" + 
+                          std::to_string(animationSequence.size()) + ")");
+        animText.setCharacterSize(16);
+        animText.setFillColor(TEXT_COLOR);
+        animText.setPosition(20.0f, 80.0f);
+        window.draw(animText);
+        
+        // Display current input being processed if available
+        if (!currentInput.empty()) {
+            sf::Text inputText;
+            inputText.setFont(font);
+            std::string displayInput = currentInput;
+            // Truncate if too long
+            if (displayInput.length() > 40) {
+                displayInput = displayInput.substr(0, 37) + "...";
+            }
+            inputText.setString("Current Input: " + displayInput);
+            inputText.setCharacterSize(16);
+            inputText.setFillColor(sf::Color(255, 220, 150));
+            inputText.setPosition(20.0f, 110.0f);
+            window.draw(inputText);
+        }
+    } else {
+        sf::Text animText;
+        animText.setFont(font);
+        animText.setString("Press 'A' to start animation (+/- to adjust speed)");
+        animText.setCharacterSize(16);
+        animText.setFillColor(TEXT_COLOR);
+        animText.setPosition(20.0f, 80.0f);
+        window.draw(animText);
+    }
+    
+    // Draw code input UI and buttons
+    window.draw(codeInputBox);
+    if (inputBuffer.empty() && !isEditingCode) {
+        window.draw(codeInputPrompt);
+    } else {
+        window.draw(codeInputText);
+    }
+    window.draw(runButton);
+    window.draw(runButtonText);
+    window.draw(loadExampleButton);
+    window.draw(loadExampleText);
+    
+    // Draw a cursor when editing code
+    if (isEditingCode) {
+        static sf::Clock cursorClock;
+        static bool showCursor = true;
+        
+        // Blink the cursor every 0.5 seconds
+        if (cursorClock.getElapsedTime().asSeconds() > 0.5f) {
+            showCursor = !showCursor;
+            cursorClock.restart();
+        }
+        
+        if (showCursor) {
+            sf::RectangleShape cursor;
+            cursor.setSize(sf::Vector2f(2, 18));
+            cursor.setFillColor(TEXT_COLOR);
+            
+            // Position cursor at end of text
+            sf::Vector2f cursorPos(30.0f, WINDOW_HEIGHT - 160.0f);
+            if (!inputBuffer.empty()) {
+                // Get approximate position (this is simplified)
+                cursorPos.x += inputBuffer.length() * 8; // Approximate width per character
+            }
+            cursor.setPosition(cursorPos);
+            window.draw(cursor);
+        }
+    }
+    
     window.display();
 }
 
 void AutomataVisualizer::run() {
+    // Auto-load the example file when starting
+    loadAndProcessExampleFile();
+    
     while (window.isOpen()) {
         handleEvents();
+        
+        // Update animation if active
+        if (isAnimating) {
+            updateAnimation();
+        }
+        
         drawAutomaton();
+    }
+}
+
+void AutomataVisualizer::loadSimulationData() {
+    // Use real trace data instead of fake data
+    loadRealSimulationData();
+}
+
+void AutomataVisualizer::loadRealSimulationData() {
+    animationSequence.clear();
+    animationInput.clear();
+    
+    if (currentMode == LEXER && !lexerTrace.empty()) {
+        // Convert lexer trace to animation sequence
+        for (size_t i = 0; i < lexerTrace.size(); ++i) {
+            int fromIdx = -1, toIdx = -1;
+            
+            // Find indices for the states in this transition
+            for (size_t j = 0; j < lexerStates.size(); ++j) {
+                if (lexerStates[j].type == lexerTrace[i].from.type) fromIdx = j;
+                if (lexerStates[j].type == lexerTrace[i].to.type) toIdx = j;
+            }
+            
+            if (fromIdx >= 0 && toIdx >= 0) {
+                animationSequence.emplace_back(fromIdx, toIdx);
+                animationInput.push_back(lexerTrace[i].input);
+            }
+        }
+    }
+    else if (currentMode == PARSER && !parserTrace.empty()) {
+        // Convert parser trace to animation sequence
+        for (size_t i = 0; i < parserTrace.size(); ++i) {
+            int fromIdx = -1, toIdx = -1;
+            
+            // Find indices for the states in this transition
+            for (size_t j = 0; j < parserStates.size(); ++j) {
+                if (parserStates[j].type == parserTrace[i].from.type) fromIdx = j;
+                if (parserStates[j].type == parserTrace[i].to.type) toIdx = j;
+            }
+            
+            if (fromIdx >= 0 && toIdx >= 0) {
+                animationSequence.emplace_back(fromIdx, toIdx);
+                animationInput.push_back(parserTrace[i].input);
+            }
+        }
+    }
+    else {
+        // Fallback to the sample simulation if no real data
+        int initialIdx = -1;
+        auto& nodes = (currentMode == LEXER) ? lexerNodes : parserNodes;
+        for (size_t i = 0; i < nodes.size(); ++i) {
+            if (nodes[i].isInitial) {
+                initialIdx = i;
+                break;
+            }
+        }
+        
+        if (initialIdx >= 0 && nodes.size() > 1) {
+            for (size_t i = 0; i < nodes.size(); ++i) {
+                if (i != initialIdx) {
+                    animationSequence.emplace_back(initialIdx, i);
+                    animationInput.push_back("input_" + std::to_string(i));
+                    initialIdx = i;
+                }
+            }
+        }
+    }
+}
+
+void AutomataVisualizer::startAnimation() {
+    isAnimating = true;
+    currentAnimationStep = 0;
+    animationClock.restart();
+    
+    // Load the simulation data from the lexer/parser
+    loadSimulationData();
+    
+    // Reset all states to inactive
+    auto& nodes = (currentMode == LEXER) ? lexerNodes : parserNodes;
+    for (auto& node : nodes) {
+        node.isActive = false;
+        node.shape.setFillColor(node.isAccepting ? ACCEPTING_COLOR : 
+                               (node.isInitial ? INITIAL_COLOR : INACTIVE_COLOR));
+    }
+    
+    // Set initial state as active
+    for (auto& node : nodes) {
+        if (node.isInitial) {
+            node.isActive = true;
+            node.shape.setFillColor(ACTIVE_COLOR);
+            break;
+        }
+    }
+}
+
+void AutomataVisualizer::updateAnimation() {
+    if (!isAnimating || animationSequence.empty()) return;
+    
+    if (animationClock.getElapsedTime().asSeconds() >= animationSpeed) {
+        // Time to process the next transition
+        if (currentAnimationStep < animationSequence.size()) {
+            int fromIdx = animationSequence[currentAnimationStep].first;
+            int toIdx = animationSequence[currentAnimationStep].second;
+            const std::string& input = animationInput[currentAnimationStep];
+            
+            animateTransition(fromIdx, toIdx, input);
+            currentAnimationStep++;
+            animationClock.restart();
+        } else {
+            // Animation complete
+            isAnimating = false;
+        }
+    }
+}
+
+void AutomataVisualizer::animateTransition(int fromIdx, int toIdx, const std::string& input) {
+    auto& nodes = (currentMode == LEXER) ? lexerNodes : parserNodes;
+    
+    if (fromIdx >= 0 && static_cast<size_t>(fromIdx) < nodes.size() &&
+        toIdx >= 0 && static_cast<size_t>(toIdx) < nodes.size()) {
+        
+        // Deactivate the previous state
+        nodes[fromIdx].isActive = false;
+        if (nodes[fromIdx].isAccepting) {
+            nodes[fromIdx].shape.setFillColor(ACCEPTING_COLOR);
+        } else if (nodes[fromIdx].isInitial) {
+            nodes[fromIdx].shape.setFillColor(INITIAL_COLOR);
+        } else {
+            nodes[fromIdx].shape.setFillColor(INACTIVE_COLOR);
+        }
+        
+        // Activate the new state
+        nodes[toIdx].isActive = true;
+        nodes[toIdx].shape.setFillColor(ACTIVE_COLOR);
+        
+        // Show the input being processed in the console
+        std::cout << "Processing: " << input << " (Transition from state " 
+                  << fromIdx << " to " << toIdx << ")" << std::endl;
+        
+        // Update current input display - we'll add this to the UI later
+        currentInput = input;
     }
 }

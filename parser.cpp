@@ -80,7 +80,22 @@ void debugASTStructure(ASTNode* node, int level = 0) {
     }
 }
 
+void Parser::recordTransition(const State& from, const State& to, const std::string& input) {
+    executionTrace.emplace_back(from, to, input);
+    currentState = to;
+}
+
+void Parser::resetTrace() {
+    executionTrace.clear();
+    currentState = {PROGRAM, "PROGRAM"};
+}
+
+std::vector<Parser::TraceStep> Parser::getExecutionTrace() const {
+    return executionTrace;
+}
+
 std::unique_ptr<ASTNode> Parser::parse() {
+    resetTrace();
     hasError = false;
     errorMessage = "";
     
@@ -159,7 +174,9 @@ std::unique_ptr<Program> Parser::parseProgram() {
 }
 
 std::unique_ptr<Statement> Parser::parseStatement() {
+    State prevState = currentState;
     currentState = {STATEMENT, "STATEMENT"};
+    recordTransition(prevState, currentState, peek().toString());
     
     // Skip empty lines (consecutive newlines) and DEDENT tokens
     while (match(Token::NEWLINE) || match(Token::DEDENT)) {

@@ -66,6 +66,20 @@ void Lexer::initAutomaton() {
     };
 }
 
+void Lexer::recordTransition(const State& from, const State& to, const std::string& input) {
+    executionTrace.emplace_back(from, to, input);
+    currentState = to;
+}
+
+void Lexer::resetTrace() {
+    executionTrace.clear();
+    currentState = {State::START, "START"};
+}
+
+std::vector<Lexer::TraceStep> Lexer::getExecutionTrace() const {
+    return executionTrace;
+}
+
 std::vector<Token> Lexer::tokenize() {
     std::vector<Token> tokens;
     pos = 0;
@@ -74,29 +88,43 @@ std::vector<Token> Lexer::tokenize() {
     indentStack = std::stack<int>();
     indentStack.push(0);
     currentState = {State::START, "START"};
+    resetTrace();
     
     while (pos < sourceCode.length()) {
         char current = peek();
+        State prevState = currentState;
         
         // Handle different character types
         if (current == '#') {
             tokens.push_back(handleComment());
+            recordTransition(prevState, currentState, std::string(1, current));
         } else if (isalpha(current) || current == '_') {
             // Check for f-string before handling as identifier
             if ((current == 'f' || current == 'F') && pos + 1 < sourceCode.length() && 
                 (sourceCode[pos + 1] == '"' || sourceCode[pos + 1] == '\'')) {
-                tokens.push_back(handleFString());
+                Token token = handleFString();
+                tokens.push_back(token);
+                recordTransition(prevState, currentState, token.value);
             } else {
-                tokens.push_back(handleIdentifier());
+                Token token = handleIdentifier();
+                tokens.push_back(token);
+                recordTransition(prevState, currentState, token.value);
             }
         } else if (isdigit(current)) {
-            tokens.push_back(handleNumber());
+            Token token = handleNumber();
+            tokens.push_back(token);
+            recordTransition(prevState, currentState, token.value);
         } else if (current == '"' || current == '\'') {
-            tokens.push_back(handleString());
+            Token token = handleString();
+            tokens.push_back(token);
+            recordTransition(prevState, currentState, token.value);
         } else if (ispunct(current) && current != '#') {
-            tokens.push_back(handleOperator());
+            Token token = handleOperator();
+            tokens.push_back(token);
+            recordTransition(prevState, currentState, token.value);
         } else if (current == '\n') {
             tokens.push_back(Token(Token::NEWLINE, "\\n", line, column));
+            recordTransition(prevState, currentState, "\\n");
             advance();
             line++;
             column = 1;
@@ -115,6 +143,7 @@ std::vector<Token> Lexer::tokenize() {
         } else {
             // Unrecognized character
             tokens.push_back(Token(Token::ERROR, std::string(1, current), line, column));
+            recordTransition(prevState, currentState, std::string(1, current));
             advance();
         }
     }
