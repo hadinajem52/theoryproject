@@ -48,7 +48,8 @@ function main() {
   console.log(`A wild ${creature.name} appears!`);
   console.log(creature.speak());
   while ((creature.health > 0)) {
-    console.log("What would you like to do?");
+    console.log("
+What would you like to do?");
     console.log("1. Let the creature speak");
     console.log("2. Ask the creature to use its power");
     console.log("3. Feed the creature (+20 health)");
@@ -69,7 +70,8 @@ function main() {
     }
     time.sleep(1);
     if (((creature.experience >= 20) && (creature.experience < 21))) {
-      console.log(`Amazing! ${creature.name} is evolving! ✨`);
+      console.log(`
+✨ Amazing! ${creature.name} is evolving! ✨`);
       time.sleep(2);
       creature.name = ("Elder " + creature.name);
       console.log(`${creature.name} has reached a new form!`);

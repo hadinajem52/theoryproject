@@ -20,6 +20,11 @@ public:
     struct State {
         StateType type;
         std::string name;
+        bool isAccepting = false;  // Added property
+        bool isInitial = false;    // Added property
+        
+        State(StateType t = PROGRAM, const std::string& n = "") 
+            : type(t), name(n) {}
         
         bool operator==(const State& other) const {
             return type == other.type && name == other.name;

@@ -19,6 +19,11 @@ public:
         
         StateType type;
         std::string name;
+        bool isAccepting = false;  // Added property
+        bool isInitial = false;    // Added property
+        
+        State(StateType t = START, const std::string& n = "") 
+            : type(t), name(n) {}
     };
     
     struct Transition {
