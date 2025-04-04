@@ -18,7 +18,7 @@ const sf::Color ERROR_EDGE_COLOR(255, 100, 100); // Red for error transitions
 const sf::Color EPSILON_EDGE_COLOR(100, 100, 255); // Blue for epsilon transitions
 const sf::Color BACKGROUND_COLOR(50, 50, 50);
 
-AutomataVisualizer::AutomataVisualizer() : currentMode(LEXER), currentLayout(CIRCULAR), selectedNode(nullptr), isAnimating(false), animationSpeed(1.0f), currentAnimationStep(0), isEditingCode(false) {
+AutomataVisualizer::AutomataVisualizer() : currentMode(LEXER), currentLayout(CIRCULAR), selectedNode(nullptr), isAnimating(false), animationSpeed(1.0f), currentAnimationStep(0) {
 }
 
 AutomataVisualizer::~AutomataVisualizer() {
@@ -45,41 +45,9 @@ void AutomataVisualizer::initialize() {
         }
     }
     
-    // Initialize code input UI
-    codeInputBox.setSize(sf::Vector2f(WINDOW_WIDTH - 40, 150));
-    codeInputBox.setPosition(20, WINDOW_HEIGHT - 170);
-    codeInputBox.setFillColor(sf::Color(30, 30, 30));
-    codeInputBox.setOutlineColor(sf::Color(100, 100, 100));
-    codeInputBox.setOutlineThickness(2);
-    
-    codeInputText.setFont(font);
-    codeInputText.setCharacterSize(16);
-    codeInputText.setFillColor(TEXT_COLOR);
-    codeInputText.setPosition(30, WINDOW_HEIGHT - 160);
-    
-    codeInputPrompt.setFont(font);
-    codeInputPrompt.setString("Click here to enter Python code");
-    codeInputPrompt.setCharacterSize(16);
-    codeInputPrompt.setFillColor(sf::Color(150, 150, 150));
-    codeInputPrompt.setPosition(30, WINDOW_HEIGHT - 160);
-    
-    runButton.setSize(sf::Vector2f(100, 30));
-    runButton.setPosition(WINDOW_WIDTH - 120, WINDOW_HEIGHT - 50);
-    runButton.setFillColor(sf::Color(50, 100, 50));
-    
-    runButtonText.setFont(font);
-    runButtonText.setString("Run");
-    runButtonText.setCharacterSize(16);
-    runButtonText.setFillColor(TEXT_COLOR);
-    sf::FloatRect textBounds = runButtonText.getLocalBounds();
-    runButtonText.setPosition(
-        WINDOW_WIDTH - 120 + (100 - textBounds.width) / 2,
-        WINDOW_HEIGHT - 50 + (30 - textBounds.height) / 2 - 5
-    );
-    
     // Initialize load example button
     loadExampleButton.setSize(sf::Vector2f(200, 30));
-    loadExampleButton.setPosition(WINDOW_WIDTH - 320, WINDOW_HEIGHT - 50);
+    loadExampleButton.setPosition(WINDOW_WIDTH - 220, WINDOW_HEIGHT - 50);
     loadExampleButton.setFillColor(sf::Color(50, 50, 150));
     
     loadExampleText.setFont(font);
@@ -88,7 +56,7 @@ void AutomataVisualizer::initialize() {
     loadExampleText.setFillColor(TEXT_COLOR);
     sf::FloatRect exampleTextBounds = loadExampleText.getLocalBounds();
     loadExampleText.setPosition(
-        WINDOW_WIDTH - 320 + (200 - exampleTextBounds.width) / 2,
+        WINDOW_WIDTH - 220 + (200 - exampleTextBounds.width) / 2,
         WINDOW_HEIGHT - 50 + (30 - exampleTextBounds.height) / 2 - 5
     );
 }
@@ -126,10 +94,6 @@ void AutomataVisualizer::loadAndProcessExampleFile() {
         std::cerr << "Failed to load example.py file" << std::endl;
         return;
     }
-    
-    // Update the input buffer to show the loaded code
-    inputBuffer = content;
-    codeInputText.setString(inputBuffer);
     
     // Process the code
     processPythonCode(content);
@@ -184,8 +148,8 @@ void AutomataVisualizer::visualizeLexer(const Lexer& lexer) {
         sf::FloatRect textBounds = node.label.getLocalBounds();
         node.label.setOrigin(textBounds.width / 2.0f, textBounds.height / 2.0f);
         
-        // Check if this is the current state
-        node.isActive = (state.type == currentState.type);
+        // Check if this is the current state (compare both type and name)
+        node.isActive = (state.type == currentState.type && state.name == currentState.name);
         if (node.isActive) {
             node.shape.setFillColor(ACTIVE_COLOR);
         }
@@ -211,11 +175,13 @@ void AutomataVisualizer::visualizeLexer(const Lexer& lexer) {
     std::vector<std::string> labels;
     
     for (const auto& transition : lexerTransitions) {
-        // Find the indices of the source and target states
+        // Find the indices of the source and target states - match both type and name
         int sourceIdx = -1, targetIdx = -1;
         for (size_t i = 0; i < lexerStates.size(); ++i) {
-            if (lexerStates[i].type == transition.from.type) sourceIdx = i;
-            if (lexerStates[i].type == transition.to.type) targetIdx = i;
+            if (lexerStates[i].type == transition.from.type && 
+                lexerStates[i].name == transition.from.name) sourceIdx = i;
+            if (lexerStates[i].type == transition.to.type && 
+                lexerStates[i].name == transition.to.name) targetIdx = i;
         }
         
         if (sourceIdx >= 0 && targetIdx >= 0) {
@@ -253,8 +219,8 @@ void AutomataVisualizer::visualizeParser(const Parser& parser) {
         sf::FloatRect textBounds = node.label.getLocalBounds();
         node.label.setOrigin(textBounds.width / 2.0f, textBounds.height / 2.0f);
         
-        // Check if this is the current state
-        node.isActive = (state.type == currentState.type);
+        // Check if this is the current state (compare both type and name)
+        node.isActive = (state.type == currentState.type && state.name == currentState.name);
         if (node.isActive) {
             node.shape.setFillColor(ACTIVE_COLOR);
         }
@@ -279,11 +245,13 @@ void AutomataVisualizer::visualizeParser(const Parser& parser) {
     std::vector<std::string> labels;
     
     for (const auto& transition : parserTransitions) {
-        // Find the indices of the source and target states
+        // Find the indices of the source and target states - match both type and name
         int sourceIdx = -1, targetIdx = -1;
         for (size_t i = 0; i < parserStates.size(); ++i) {
-            if (parserStates[i].type == transition.from.type) sourceIdx = i;
-            if (parserStates[i].type == transition.to.type) targetIdx = i;
+            if (parserStates[i].type == transition.from.type && 
+                parserStates[i].name == transition.from.name) sourceIdx = i;
+            if (parserStates[i].type == transition.to.type && 
+                parserStates[i].name == transition.to.name) targetIdx = i;
         }
         
         if (sourceIdx >= 0 && targetIdx >= 0) {
@@ -435,12 +403,7 @@ void AutomataVisualizer::handleEvents() {
         }
         else if (event.type == sf::Event::KeyPressed) {
             if (event.key.code == sf::Keyboard::Escape) {
-                if (isEditingCode) {
-                    // Exit code editing mode if Escape is pressed
-                    isEditingCode = false;
-                } else {
-                    window.close();
-                }
+                window.close();
             }
             else if (event.key.code == sf::Keyboard::Space) {
                 switchMode();
@@ -471,22 +434,12 @@ void AutomataVisualizer::handleEvents() {
             if (event.mouseButton.button == sf::Mouse::Left) {
                 sf::Vector2f mousePos(event.mouseButton.x, event.mouseButton.y);
                 
-                // Check if code input box was clicked
-                if (codeInputBox.getGlobalBounds().contains(mousePos)) {
-                    isEditingCode = true;
-                }
-                // Check if run button was clicked
-                else if (runButton.getGlobalBounds().contains(mousePos)) {
-                    processPythonCode(inputBuffer);
-                    isEditingCode = false;
-                }
                 // Check if load example button was clicked
-                else if (loadExampleButton.getGlobalBounds().contains(mousePos)) {
+                if (loadExampleButton.getGlobalBounds().contains(mousePos)) {
                     loadAndProcessExampleFile();
                 }
-                // Check for node selection (existing code)
+                // Check for node selection
                 else {
-                    isEditingCode = false; // Click outside editor area
                     auto& nodes = (currentMode == LEXER) ? lexerNodes : parserNodes;
                     for (auto& node : nodes) {
                         sf::Vector2f nodePos = node.shape.getPosition();
@@ -509,34 +462,6 @@ void AutomataVisualizer::handleEvents() {
                 selectedNode->label.setPosition(event.mouseMove.x, event.mouseMove.y);
                 updateEdges();
             }
-        }
-        
-        // Handle text input when editing code
-        if (isEditingCode) {
-            handleCodeInputEvents(event);
-        }
-    }
-}
-
-void AutomataVisualizer::handleCodeInputEvents(const sf::Event& event) {
-    if (event.type == sf::Event::TextEntered) {
-        // Handle text input
-        if (event.text.unicode < 128) {
-            if (event.text.unicode == 8) { // Backspace
-                if (!inputBuffer.empty()) {
-                    inputBuffer.pop_back();
-                }
-            }
-            else if (event.text.unicode == 13) { // Enter
-                inputBuffer += '\n';
-            }
-            else if (event.text.unicode == 9) { // Tab
-                inputBuffer += "    "; // Add 4 spaces for tab
-            }
-            else {
-                inputBuffer += static_cast<char>(event.text.unicode);
-            }
-            codeInputText.setString(inputBuffer);
         }
     }
 }
@@ -566,8 +491,10 @@ void AutomataVisualizer::updateEdges() {
         for (const auto& transition : lexerTransitions) {
             int sourceIdx = -1, targetIdx = -1;
             for (size_t i = 0; i < lexerStates.size(); ++i) {
-                if (lexerStates[i].type == transition.from.type) sourceIdx = i;
-                if (lexerStates[i].type == transition.to.type) targetIdx = i;
+                if (lexerStates[i].type == transition.from.type && 
+                    lexerStates[i].name == transition.from.name) sourceIdx = i;
+                if (lexerStates[i].type == transition.to.type && 
+                    lexerStates[i].name == transition.to.name) targetIdx = i;
             }
             
             if (sourceIdx >= 0 && targetIdx >= 0) {
@@ -585,8 +512,10 @@ void AutomataVisualizer::updateEdges() {
         for (const auto& transition : parserTransitions) {
             int sourceIdx = -1, targetIdx = -1;
             for (size_t i = 0; i < parserStates.size(); ++i) {
-                if (parserStates[i].type == transition.from.type) sourceIdx = i;
-                if (parserStates[i].type == transition.to.type) targetIdx = i;
+                if (parserStates[i].type == transition.from.type && 
+                    parserStates[i].name == transition.from.name) sourceIdx = i;
+                if (parserStates[i].type == transition.to.type && 
+                    parserStates[i].name == transition.to.name) targetIdx = i;
             }
             
             if (sourceIdx >= 0 && targetIdx >= 0) {
@@ -617,8 +546,10 @@ void AutomataVisualizer::applyForceDirectedLayout(std::vector<Node>& nodes, int 
         for (const auto& transition : lexerTransitions) {
             int sourceIdx = -1, targetIdx = -1;
             for (size_t i = 0; i < lexerStates.size(); ++i) {
-                if (lexerStates[i].type == transition.from.type) sourceIdx = i;
-                if (lexerStates[i].type == transition.to.type) targetIdx = i;
+                if (lexerStates[i].type == transition.from.type && 
+                    lexerStates[i].name == transition.from.name) sourceIdx = i;
+                if (lexerStates[i].type == transition.to.type && 
+                    lexerStates[i].name == transition.to.name) targetIdx = i;
             }
             
             if (sourceIdx >= 0 && targetIdx >= 0) {
@@ -629,8 +560,10 @@ void AutomataVisualizer::applyForceDirectedLayout(std::vector<Node>& nodes, int 
         for (const auto& transition : parserTransitions) {
             int sourceIdx = -1, targetIdx = -1;
             for (size_t i = 0; i < parserStates.size(); ++i) {
-                if (parserStates[i].type == transition.from.type) sourceIdx = i;
-                if (parserStates[i].type == transition.to.type) targetIdx = i;
+                if (parserStates[i].type == transition.from.type && 
+                    parserStates[i].name == transition.from.name) sourceIdx = i;
+                if (parserStates[i].type == transition.to.type && 
+                    parserStates[i].name == transition.to.name) targetIdx = i;
             }
             
             if (sourceIdx >= 0 && targetIdx >= 0) {
@@ -847,44 +780,9 @@ void AutomataVisualizer::drawAutomaton() {
         window.draw(animText);
     }
     
-    // Draw code input UI and buttons
-    window.draw(codeInputBox);
-    if (inputBuffer.empty() && !isEditingCode) {
-        window.draw(codeInputPrompt);
-    } else {
-        window.draw(codeInputText);
-    }
-    window.draw(runButton);
-    window.draw(runButtonText);
+    // Draw the load example button
     window.draw(loadExampleButton);
     window.draw(loadExampleText);
-    
-    // Draw a cursor when editing code
-    if (isEditingCode) {
-        static sf::Clock cursorClock;
-        static bool showCursor = true;
-        
-        // Blink the cursor every 0.5 seconds
-        if (cursorClock.getElapsedTime().asSeconds() > 0.5f) {
-            showCursor = !showCursor;
-            cursorClock.restart();
-        }
-        
-        if (showCursor) {
-            sf::RectangleShape cursor;
-            cursor.setSize(sf::Vector2f(2, 18));
-            cursor.setFillColor(TEXT_COLOR);
-            
-            // Position cursor at end of text
-            sf::Vector2f cursorPos(30.0f, WINDOW_HEIGHT - 160.0f);
-            if (!inputBuffer.empty()) {
-                // Get approximate position (this is simplified)
-                cursorPos.x += inputBuffer.length() * 8; // Approximate width per character
-            }
-            cursor.setPosition(cursorPos);
-            window.draw(cursor);
-        }
-    }
     
     window.display();
 }
@@ -915,19 +813,41 @@ void AutomataVisualizer::loadRealSimulationData() {
     animationInput.clear();
     
     if (currentMode == LEXER && !lexerTrace.empty()) {
+        // Debug output to check trace contents
+        std::cout << "\nDEBUG - Trace contents:" << std::endl;
+        for (size_t i = 0; i < lexerTrace.size(); ++i) {
+            std::cout << "Trace " << i << ": " 
+                    << lexerTrace[i].from.name << "(type:" << lexerTrace[i].from.type << ") -> "
+                    << lexerTrace[i].to.name << "(type:" << lexerTrace[i].to.type << ") "
+                    << "Input: " << lexerTrace[i].input << std::endl;
+        }
+
+        std::cout << "\nDEBUG - State list:" << std::endl;
+        for (size_t j = 0; j < lexerStates.size(); ++j) {
+            std::cout << "State " << j << ": " 
+                    << lexerStates[j].name << "(type:" << lexerStates[j].type << ")" << std::endl;
+        }
+        
         // Convert lexer trace to animation sequence
         for (size_t i = 0; i < lexerTrace.size(); ++i) {
             int fromIdx = -1, toIdx = -1;
             
             // Find indices for the states in this transition
             for (size_t j = 0; j < lexerStates.size(); ++j) {
-                if (lexerStates[j].type == lexerTrace[i].from.type) fromIdx = j;
-                if (lexerStates[j].type == lexerTrace[i].to.type) toIdx = j;
+                // Compare both type and name for more precise matching
+                if (lexerStates[j].type == lexerTrace[i].from.type && 
+                    lexerStates[j].name == lexerTrace[i].from.name) fromIdx = j;
+                if (lexerStates[j].type == lexerTrace[i].to.type && 
+                    lexerStates[j].name == lexerTrace[i].to.name) toIdx = j;
             }
             
             if (fromIdx >= 0 && toIdx >= 0) {
                 animationSequence.emplace_back(fromIdx, toIdx);
                 animationInput.push_back(lexerTrace[i].input);
+            } else {
+                std::cout << "Warning: Could not match transition at index " << i 
+                        << " from: " << lexerTrace[i].from.name 
+                        << " to: " << lexerTrace[i].to.name << std::endl;
             }
         }
     }
@@ -938,8 +858,11 @@ void AutomataVisualizer::loadRealSimulationData() {
             
             // Find indices for the states in this transition
             for (size_t j = 0; j < parserStates.size(); ++j) {
-                if (parserStates[j].type == parserTrace[i].from.type) fromIdx = j;
-                if (parserStates[j].type == parserTrace[i].to.type) toIdx = j;
+                // Compare both type and name for more precise matching
+                if (parserStates[j].type == parserTrace[i].from.type && 
+                    parserStates[j].name == parserTrace[i].from.name) fromIdx = j;
+                if (parserStates[j].type == parserTrace[i].to.type && 
+                    parserStates[j].name == parserTrace[i].to.name) toIdx = j;
             }
             
             if (fromIdx >= 0 && toIdx >= 0) {

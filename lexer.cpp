@@ -96,38 +96,87 @@ std::vector<Token> Lexer::tokenize() {
         
         // Handle different character types
         if (current == '#') {
+            // Update current state to COMMENT before handling
+            State commentState = {State::COMMENT, "COMMENT"};
+            recordTransition(prevState, commentState, "#");
+            
             tokens.push_back(handleComment());
-            recordTransition(prevState, currentState, std::string(1, current));
+            
+            // Return to start state
+            State startState = {State::START, "START"};
+            recordTransition(commentState, startState, "end of comment");
         } else if (isalpha(current) || current == '_') {
             // Check for f-string before handling as identifier
             if ((current == 'f' || current == 'F') && pos + 1 < sourceCode.length() && 
                 (sourceCode[pos + 1] == '"' || sourceCode[pos + 1] == '\'')) {
+                // Update current state to STRING before handling
+                State stringState = {State::STRING, "STRING"};
+                recordTransition(prevState, stringState, "f");
+                
                 Token token = handleFString();
                 tokens.push_back(token);
-                recordTransition(prevState, currentState, token.value);
+                
+                // Return to start state
+                State startState = {State::START, "START"};
+                recordTransition(stringState, startState, token.value);
             } else {
+                // Update current state to IDENTIFIER before handling
+                State identifierState = {State::IDENTIFIER, "IDENTIFIER"};
+                recordTransition(prevState, identifierState, std::string(1, current));
+                
                 Token token = handleIdentifier();
                 tokens.push_back(token);
-                recordTransition(prevState, currentState, token.value);
+                
+                // Return to start state
+                State startState = {State::START, "START"};
+                recordTransition(identifierState, startState, token.value);
             }
         } else if (isdigit(current)) {
+            // Update current state to NUMBER before handling
+            State numberState = {State::NUMBER, "NUMBER"};
+            recordTransition(prevState, numberState, std::string(1, current));
+            
             Token token = handleNumber();
             tokens.push_back(token);
-            recordTransition(prevState, currentState, token.value);
+            
+            // Return to start state
+            State startState = {State::START, "START"};
+            recordTransition(numberState, startState, token.value);
         } else if (current == '"' || current == '\'') {
+            // Update current state to STRING before handling
+            State stringState = {State::STRING, "STRING"};
+            recordTransition(prevState, stringState, std::string(1, current));
+            
             Token token = handleString();
             tokens.push_back(token);
-            recordTransition(prevState, currentState, token.value);
+            
+            // Return to start state
+            State startState = {State::START, "START"};
+            recordTransition(stringState, startState, token.value);
         } else if (ispunct(current) && current != '#') {
+            // Update current state to OPERATOR before handling
+            State operatorState = {State::OPERATOR, "OPERATOR"};
+            recordTransition(prevState, operatorState, std::string(1, current));
+            
             Token token = handleOperator();
             tokens.push_back(token);
-            recordTransition(prevState, currentState, token.value);
+            
+            // Return to start state
+            State startState = {State::START, "START"};
+            recordTransition(operatorState, startState, token.value);
         } else if (current == '\n') {
+            // Update current state to NEWLINE before handling
+            State newlineState = {State::NEWLINE, "NEWLINE"};
+            recordTransition(prevState, newlineState, "\\n");
+            
             tokens.push_back(Token(Token::NEWLINE, "\\n", line, column));
-            recordTransition(prevState, currentState, "\\n");
             advance();
             line++;
             column = 1;
+            
+            // Update current state to INDENTATION before handling
+            State indentState = {State::INDENTATION, "INDENTATION"};
+            recordTransition(newlineState, indentState, "after newline");
             
             // Handle indentation for the next line
             std::string nextLine;
@@ -138,12 +187,24 @@ std::vector<Token> Lexer::tokenize() {
             
             std::vector<Token> indentTokens = handleIndentation(nextLine);
             tokens.insert(tokens.end(), indentTokens.begin(), indentTokens.end());
+            
+            // Return to start state
+            State startState = {State::START, "START"};
+            recordTransition(indentState, startState, "after indentation");
         } else if (isspace(current)) {
+            // Update current state to WHITESPACE before handling
+            State whitespaceState = {State::WHITESPACE, "WHITESPACE"};
+            recordTransition(prevState, whitespaceState, "whitespace");
+            
             skipWhitespace();
+            
+            // Return to start state
+            State startState = {State::START, "START"};
+            recordTransition(whitespaceState, startState, "end of whitespace");
         } else {
-            // Unrecognized character
+            // Unrecognized character - stay in START state
             tokens.push_back(Token(Token::ERROR, std::string(1, current), line, column));
-            recordTransition(prevState, currentState, std::string(1, current));
+            recordTransition(prevState, prevState, "error: " + std::string(1, current));
             advance();
         }
     }
@@ -439,8 +500,6 @@ Token Lexer::handleOperator() {
 }
 
 Token Lexer::handleComment() {
-    currentState = {State::COMMENT, "COMMENT"};
-    
     std::string value;
     value += advance(); // consume the '#'
     
@@ -448,9 +507,6 @@ Token Lexer::handleComment() {
     while (peek() != '\n' && peek() != '\0') {
         value += advance();
     }
-    
-    // Return to start state
-    currentState = {State::START, "START"};
     
     return Token(Token::COMMENT, value, line, column - static_cast<int>(value.length()));
 }

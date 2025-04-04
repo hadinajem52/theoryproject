@@ -40,7 +40,7 @@ private:
     struct Edge {
         sf::VertexArray line;
         sf::Text label;
-        sf::ConvexShape arrow;  // Changed from CircleShape to ConvexShape for triangular arrows
+        sf::ConvexShape arrow;
         bool isSelfLoop;
         
         Edge() : isSelfLoop(false) {}
@@ -61,15 +61,6 @@ private:
     std::string currentCode;
     std::vector<Lexer::TraceStep> lexerTrace;
     std::vector<Parser::TraceStep> parserTrace;
-    
-    // UI for code input
-    sf::RectangleShape codeInputBox;
-    sf::Text codeInputText;
-    sf::Text codeInputPrompt;
-    sf::RectangleShape runButton;
-    sf::Text runButtonText;
-    bool isEditingCode = false;
-    std::string inputBuffer;
     
     // UI for example file loading
     sf::RectangleShape loadExampleButton;
@@ -116,8 +107,4 @@ private:
     void animateTransition(int fromIdx, int toIdx, const std::string& input);
     void loadSimulationData();
     void loadRealSimulationData();
-    
-    // Methods for code input UI
-    void drawCodeInputUI();
-    void handleCodeInputEvents(const sf::Event& event);
 };
